@@ -1,0 +1,21 @@
+# Dependencias
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db
+
+# Builds y temporales
+dist
+build
+.cache
+
+# Logs de Firebase
+firebase-debug.log
+.firebase
+
+# Variables de entorno (IMPORTANTE: Nunca subir claves reales)
+.env
+.env.local
