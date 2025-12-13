@@ -813,7 +813,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
             </button>
             <button type="submit" className="flex-1 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex justify-center items-center gap-2 shadow-lg shadow-red-500/30">
               <Save size={20} />
-              Guardar
+              Guardar Datos
             </button>
           </div>
         </form>
