@@ -39,7 +39,8 @@ import {
   Zap,
   Settings,
   Terminal,
-  Check
+  Check,
+  Smartphone
 } from 'lucide-react';
 
 export default function App() {
@@ -91,9 +92,24 @@ export default function App() {
   const [showPinInput, setShowPinInput] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
 
+  // --- PWA INSTALL PROMPT STATE ---
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
   useEffect(() => {
     StorageService.seedData();
     loadData();
+
+    // Listen for PWA install event
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
 
   // Auto-hide toast after 3 seconds
@@ -155,6 +171,16 @@ export default function App() {
   const loadData = async () => {
     const records = await StorageService.getAll();
     setData(records);
+  };
+
+  const handleInstallClick = () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    installPrompt.userChoice.then((choiceResult: any) => {
+      if (choiceResult.outcome === 'accepted') {
+        setInstallPrompt(null);
+      }
+    });
   };
 
   // --- DEVELOPER AUTH ---
@@ -832,6 +858,27 @@ export default function App() {
 
         {/* Main Content */}
         <main className="flex-1 container mx-auto px-4 py-6">
+
+          {/* INSTALL PROMPT BANNER */}
+          {installPrompt && (
+            <div className="mb-6 p-4 bg-slate-900 text-white rounded-xl shadow-lg flex items-center justify-between animate-in slide-in-from-top-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-600 p-2 rounded-lg">
+                  <Smartphone size={24} />
+                </div>
+                <div>
+                  <h3 className="font-bold">Instalar MetroMaint</h3>
+                  <p className="text-xs text-slate-300">Acceso rápido y pantalla completa</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleInstallClick}
+                className="bg-white text-slate-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-100 transition-colors"
+              >
+                INSTALAR
+              </button>
+            </div>
+          )}
           
           {/* SEARCH BAR (Visible ONLY when searching or in other views) */}
           {(isSearchActive && view === 'LIST') || (view !== 'LIST' && view !== 'ADD') ? (
