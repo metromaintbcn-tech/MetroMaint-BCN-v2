@@ -812,7 +812,7 @@ export default function App() {
                         </form>
                     ) : (
                         <div className="flex justify-between items-center">
-                            <p className="text-[10px] text-slate-600">v1.3.1 • MetroMaint BCN</p>
+                            <p className="text-[10px] text-slate-600">v1.3.2 • MetroMaint BCN</p>
                             <button onClick={() => setShowPinInput(true)} className="p-2 text-slate-700 hover:text-slate-500 transition-colors opacity-50 hover:opacity-100" title="Admin">
                                 <Lock size={12} />
                             </button>
