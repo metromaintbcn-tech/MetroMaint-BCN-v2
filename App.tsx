@@ -529,7 +529,7 @@ export default function App() {
         case 3: return 'border-l-green-600 dark:border-l-green-500';   
         case 4: return 'border-l-yellow-400 dark:border-l-yellow-400';  
         case 5: return 'border-l-blue-600 dark:border-l-blue-500';     
-        case 9: return 'border-l-orange-600 dark:border-l-orange-500';  
+        case 9: return 'border-l-orange-400 dark:border-l-orange-400'; // CAMBIO: L9 Naranja Luminoso
         case 10: return 'border-l-sky-400 dark:border-l-sky-400';    
         case 11: return 'border-l-lime-400 dark:border-l-lime-400';   
         default: return 'border-l-gray-300 dark:border-l-gray-600';   
@@ -619,7 +619,8 @@ export default function App() {
       return (
         <div 
           key={item.id} 
-          className={`bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border-l-4 ${lineColor} ${bgClass} border-r border-t border-b border-gray-100 dark:border-slate-700 transition-all hover:shadow-md`}
+          // CAMBIO: Aumentado border-l-4 a border-l-8 para doblar grosor
+          className={`bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border-l-8 ${lineColor} ${bgClass} border-r border-t border-b border-gray-100 dark:border-slate-700 transition-all hover:shadow-md`}
         >
           <div className="flex flex-col gap-2">
             <div className="flex-1 min-w-0">
@@ -812,7 +813,7 @@ export default function App() {
                         </form>
                     ) : (
                         <div className="flex justify-between items-center">
-                            <p className="text-[10px] text-slate-600">v1.3.5 • MetroMaint BCN</p>
+                            <p className="text-[10px] text-slate-600">v1.3.6 • MetroMaint BCN</p>
                             <button onClick={() => setShowPinInput(true)} className="p-2 text-slate-700 hover:text-slate-500 transition-colors opacity-50 hover:opacity-100" title="Admin">
                                 <Lock size={12} />
                             </button>
