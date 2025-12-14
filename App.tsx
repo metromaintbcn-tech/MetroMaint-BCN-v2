@@ -645,8 +645,8 @@ export default function App() {
        const hasCycles = r.stroke !== undefined || r.filling !== undefined || r.emptyingB1 !== undefined || r.emptyingB2 !== undefined;
        if (!hasCycles) return null;
        return (
-        <p className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mt-1">
-            <span className="text-xs sm:text-sm">Tiempos:</span>
+        <p className="text-sm text-gray-600 dark:text-gray-400 flex justify-end items-center mt-1">
+            <span className="text-xs sm:text-sm mr-2 font-bold">T:</span>
             <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
                 <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Cur:</span>{r.stroke ?? '--'} <span className="mx-1">|</span> 
                 <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Llen:</span>{r.filling ?? '--'} <span className="mx-1">|</span> 
