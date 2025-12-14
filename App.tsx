@@ -40,7 +40,8 @@ import {
   Settings,
   Terminal,
   Check,
-  Smartphone
+  Smartphone,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function App() {
@@ -414,7 +415,67 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Copia de seguridad descargada', 'success');
+    showToast('Copia de seguridad (JSON) descargada', 'success');
+  };
+
+  const handleExportCSV = () => {
+    // 1. Definir Cabeceras
+    const headers = [
+      'ID', 'Estación', 'NES', 'Código Equipo', 'Tipo', 'Estado', 'Fecha ISO', 'Notas', 'Localización',
+      'Bomba 1 (A)', 'Bomba 2 (A)', 
+      'Vel. Rápida (A)', 'Vel. Lenta (A)', 'General (A)',
+      'Cursa (cm)', 'Llenado (s)', 'Vaciado B1 (s)', 'Vaciado B2 (s)',
+      'Vib. Rápida (m/s2)', 'Vib. Lenta (m/s2)',
+      'Fusibles (A)', 'Térmico Min', 'Térmico Max', 'Regulado (A)'
+    ];
+
+    // 2. Procesar Filas (Aplanar Objeto)
+    const rows = data.map(item => {
+      const r = item.readings || {};
+      // Escapamos notas para que no rompan el CSV si hay saltos de línea
+      const cleanNotes = (item.notes || '').replace(/(\r\n|\n|\r)/gm, " ");
+      
+      return [
+        item.id,
+        item.station,
+        item.nes,
+        item.deviceCode,
+        item.deviceType,
+        item.status,
+        item.date,
+        cleanNotes,
+        item.location || '',
+        r.pump1 || '',
+        r.pump2 || '',
+        r.speedFast || '',
+        r.speedSlow || '',
+        r.generic || '',
+        r.stroke || '',
+        r.filling || '',
+        r.emptyingB1 || '',
+        r.emptyingB2 || '',
+        r.vibrationFast || '',
+        r.vibrationSlow || '',
+        r.fuses || '',
+        r.thermalMin || '',
+        r.thermalMax || '',
+        r.regulated || ''
+      ].join(';'); // Usamos ; porque en España Excel usa , para decimales
+    });
+
+    // 3. Unir todo con BOM para que Excel lea tildes
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    
+    // 4. Descargar
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `metro_informe_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Informe Excel descargado correctamente', 'success');
   };
 
   // --- FILTERING & SORTING ---
@@ -559,19 +620,19 @@ export default function App() {
     const r = item.readings || {};
     if (item.deviceType === DeviceType.POZO_AGOTAMIENTO || item.deviceType === DeviceType.FOSA_SEPTICA) {
       return (
-        <span className="font-medium text-gray-800 dark:text-gray-200">
-           <span className="mr-2 text-xs text-gray-500">B1:</span>{r.pump1 || '--'}A <span className="mx-1">|</span> <span className="mr-2 text-xs text-gray-500">B2:</span>{r.pump2 || '--'}A
+        <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
+           <span className="mr-2 text-[10px] sm:text-xs text-gray-500">B1:</span>{r.pump1 || '--'}A <span className="mx-1">|</span> <span className="mr-2 text-[10px] sm:text-xs text-gray-500">B2:</span>{r.pump2 || '--'}A
         </span>
       );
     } else if (item.deviceType === DeviceType.VENT_ESTACION || item.deviceType === DeviceType.VENT_TUNEL) {
       return (
-        <span className="font-medium text-gray-800 dark:text-gray-200">
-           <span className="mr-2 text-xs text-gray-500">Ráp:</span>{r.speedFast || '--'}A <span className="mx-1">|</span> <span className="mr-2 text-xs text-gray-500">Len:</span>{r.speedSlow || '--'}A
+        <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
+           <span className="mr-2 text-[10px] sm:text-xs text-gray-500">Ráp:</span>{r.speedFast || '--'}A <span className="mx-1">|</span> <span className="mr-2 text-[10px] sm:text-xs text-gray-500">Len:</span>{r.speedSlow || '--'}A
         </span>
       );
     } else {
         return (
-          <span className="font-medium text-gray-800 dark:text-gray-200">
+          <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
              {r.generic || '--'}
           </span>
         );
@@ -585,12 +646,12 @@ export default function App() {
        if (!hasCycles) return null;
        return (
         <p className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mt-1">
-            <span>Tiempos:</span>
-            <span className="font-medium text-gray-800 dark:text-gray-200">
-                <span className="mr-1 text-xs text-gray-500">Cur:</span>{r.stroke ?? '--'} <span className="mx-1">|</span> 
-                <span className="mr-1 text-xs text-gray-500">Llen:</span>{r.filling ?? '--'} <span className="mx-1">|</span> 
-                <span className="mr-1 text-xs text-gray-500">B1:</span>{r.emptyingB1 ?? '--'} <span className="mx-1">|</span> 
-                <span className="mr-1 text-xs text-gray-500">B2:</span>{r.emptyingB2 ?? '--'}
+            <span className="text-xs sm:text-sm">Tiempos:</span>
+            <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Cur:</span>{r.stroke ?? '--'} <span className="mx-1">|</span> 
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Llen:</span>{r.filling ?? '--'} <span className="mx-1">|</span> 
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">B1:</span>{r.emptyingB1 ?? '--'} <span className="mx-1">|</span> 
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">B2:</span>{r.emptyingB2 ?? '--'}
             </span>
         </p>
        )
@@ -600,10 +661,10 @@ export default function App() {
        if (!hasVib) return null;
        return (
         <p className="text-sm text-gray-600 dark:text-gray-400 flex justify-between items-center mt-1">
-            <span>Vibraciones:</span>
-            <span className="font-medium text-gray-800 dark:text-gray-200">
-                <span className="mr-1 text-xs text-gray-500">Ráp:</span>{r.vibrationFast ?? '--'} <span className="mx-1">|</span>
-                <span className="mr-1 text-xs text-gray-500">Len:</span>{r.vibrationSlow ?? '--'}
+            <span className="text-xs sm:text-sm">Vibraciones:</span>
+            <span className="font-medium text-gray-800 dark:text-gray-200 text-xs sm:text-sm">
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Ráp:</span>{r.vibrationFast ?? '--'} <span className="mx-1">|</span>
+                <span className="mr-1 text-[10px] sm:text-xs text-gray-500">Len:</span>{r.vibrationSlow ?? '--'}
             </span>
         </p>
        )
@@ -619,8 +680,9 @@ export default function App() {
       return (
         <div 
           key={item.id} 
-          // CAMBIO: Aumentado border-l-4 a border-l-8 para doblar grosor
-          className={`bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border-l-8 ${lineColor} ${bgClass} border-r border-t border-b border-gray-100 dark:border-slate-700 transition-all hover:shadow-md`}
+          // CAMBIO: Aumentado border-l-4 a border-l-8 para doblar grosor. 
+          // Ajustado padding a p-3 en móvil, p-4 en escritorio
+          className={`bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-lg shadow-sm border-l-8 ${lineColor} ${bgClass} border-r border-t border-b border-gray-100 dark:border-slate-700 transition-all hover:shadow-md`}
         >
           <div className="flex flex-col gap-2">
             <div className="flex-1 min-w-0">
@@ -637,15 +699,16 @@ export default function App() {
               
               {/* LINE 2: Station + Code + NES */}
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white truncate">{item.station}</h3>
+                    {/* Ajuste de Fuente: text-base en movil, text-lg en desktop */}
+                    <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white truncate">{item.station}</h3>
                     
                     {item.deviceCode && (
-                        <span className="font-mono text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded border border-slate-200 dark:border-slate-600 whitespace-nowrap">
+                        <span className="font-mono text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded border border-slate-200 dark:border-slate-600 whitespace-nowrap">
                             {item.deviceCode}
                         </span>
                     )}
                     
-                    <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded border border-slate-300 dark:border-slate-500 whitespace-nowrap">
+                    <span className="font-mono text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/50 px-2 py-1 rounded border border-slate-300 dark:border-slate-500 whitespace-nowrap">
                         {(item.nes || '').startsWith('NES') ? item.nes : `NES${item.nes}`}
                     </span>
               </div>
@@ -660,9 +723,10 @@ export default function App() {
 
               {/* LINE 4: Device Type + Readings */}
               <div className="mb-1 flex items-center gap-2 flex-wrap">
-                     <span className="font-bold text-sm text-gray-800 dark:text-gray-200">{item.deviceType}</span>
+                     {/* Ajuste de Fuente: text-xs en movil, text-sm en desktop */}
+                     <span className="font-bold text-xs sm:text-sm text-gray-800 dark:text-gray-200">{item.deviceType}</span>
                      <span className="h-4 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></span>
-                     <span className="text-sm text-gray-600 dark:text-gray-400 ml-auto">
+                     <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 ml-auto">
                         {renderReadings(item)}
                      </span>
               </div>
@@ -831,7 +895,7 @@ export default function App() {
                             </button>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                             {/* Hidden Inputs */}
                             <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
                             
@@ -842,10 +906,15 @@ export default function App() {
                             
                             <button onClick={handleExportBackup} className="flex flex-col items-center justify-center p-2 rounded bg-slate-700 hover:bg-slate-600 transition-colors gap-1 text-green-400">
                                <Download size={16}/>
-                               <span className="text-[9px]">Backup</span>
+                               <span className="text-[9px]">Backup JSON</span>
+                            </button>
+
+                            <button onClick={handleExportCSV} className="col-span-2 flex flex-col items-center justify-center p-2 rounded bg-green-800 hover:bg-green-700 transition-colors gap-1 text-white border border-green-600">
+                               <FileSpreadsheet size={16}/>
+                               <span className="text-[9px]">Exportar Excel (.csv)</span>
                             </button>
                             
-                            <button onClick={() => setShowMassDeleteModal(true)} className="flex flex-col items-center justify-center p-2 rounded bg-slate-700 hover:bg-red-900/30 transition-colors gap-1 text-red-500 hover:text-red-400 border border-transparent hover:border-red-500/50">
+                            <button onClick={() => setShowMassDeleteModal(true)} className="col-span-2 flex flex-col items-center justify-center p-2 rounded bg-slate-700 hover:bg-red-900/30 transition-colors gap-1 text-red-500 hover:text-red-400 border border-transparent hover:border-red-500/50 mt-1">
                                <Trash2 size={16}/>
                                <span className="text-[9px]">Reset BD</span>
                             </button>
