@@ -3,10 +3,14 @@ import firebase from "firebase/compat/app";
 import { getFirestore } from "firebase/firestore";
 
 // --- CONFIGURACIÓN DE FIREBASE (MetroMaint BCN) ---
-// Extraída de tu captura de pantalla. ¡Ya está lista!
+// NOTA DE SEGURIDAD:
+// La API KEY ha sido eliminada del código fuente para cumplir con las políticas de GitHub.
+// Debes configurar la variable de entorno 'FIREBASE_API_KEY' en tu hosting (Vercel/Netlify)
+// o en un archivo .env.local para desarrollo local.
+// Tu clave es: AIzaSyB6KZdn99OJYRx0c9Sdf6hmjnpHV1uLb3Y
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB6KZdn99OJYRx0c9Sdf6hmjnpHV1uLb3Y",
+  apiKey: process.env.FIREBASE_API_KEY, // Se leerá solo desde el entorno
   authDomain: "metromaint-bcn.firebaseapp.com",
   projectId: "metromaint-bcn",
   storageBucket: "metromaint-bcn.firebasestorage.app",

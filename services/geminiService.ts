@@ -2,20 +2,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
 // --- CONFIGURACIÓN DE GEMINI ---
-// 1. Consigue tu clave gratis en: https://aistudio.google.com/app/apikey
-// 2. Pégala abajo dentro de las comillas, sustituyendo el texto.
-// 3. IMPORTANTE: En la consola de Google Cloud, restringe esta clave a tu dominio web (Referrer HTTP) para seguridad.
-
-const GEMINI_API_KEY = "PEGAR_TU_CLAVE_AQUI"; 
+// La clave API debe estar configurada en las variables de entorno de tu servidor/hosting.
+// Variable: API_KEY
 
 const getAI = () => {
-  // Si el usuario no ha puesto la clave, intentamos usar la variable de entorno por si acaso
-  const apiKey = GEMINI_API_KEY !== "PEGAR_TU_CLAVE_AQUI" ? GEMINI_API_KEY : process.env.API_KEY;
+  // Obtenemos la clave EXCLUSIVAMENTE del entorno.
+  // Nunca escribas la clave real aquí para evitar alertas de seguridad de GitHub.
+  const apiKey = process.env.API_KEY;
   
   if (!apiKey) {
-    throw new Error("Falta la API Key de Gemini. Configúrala en services/geminiService.ts");
+    console.error("Falta la API Key de Gemini. Asegúrate de configurar la variable de entorno API_KEY en tu plataforma de despliegue (Vercel, Netlify, etc).");
+    // No lanzamos error aquí para permitir que la app cargue, pero las llamadas fallarán controladamente.
   }
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: apiKey || '' });
 };
 
 export const GeminiService = {
@@ -91,8 +90,8 @@ export const GeminiService = {
       return response.text;
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      if (error.message.includes("Falta la API Key")) {
-        return "⚠️ CONFIGURACIÓN INCOMPLETA: Necesitas añadir una API Key de Gemini en el archivo 'services/geminiService.ts' para usar la IA.";
+      if (error.message.includes("API_KEY")) {
+        return "⚠️ CONFIGURACIÓN REQUERIDA: No se detectó la variable de entorno API_KEY en el servidor.";
       }
       return "Hubo un error de conexión con la IA. Intenta de nuevo más tarde.";
     }
@@ -140,10 +139,7 @@ export const GeminiService = {
       return JSON.parse(cleanText);
     } catch (error: any) {
       console.error("OCR Error:", error);
-      if (error.message.includes("Falta la API Key")) {
-        throw new Error("Falta configurar la API Key de Gemini");
-      }
-      throw new Error("No se pudo procesar la imagen.");
+      throw new Error("No se pudo procesar la imagen. Verifica la API KEY.");
     }
   },
 
