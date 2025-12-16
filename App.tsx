@@ -41,9 +41,7 @@ import {
   Terminal,
   Check,
   Smartphone,
-  FileSpreadsheet,
-  Wifi,
-  WifiOff
+  FileSpreadsheet
 } from 'lucide-react';
 
 export default function App() {
@@ -94,9 +92,6 @@ export default function App() {
   const [devMode, setDevMode] = useState(false);
   const [showPinInput, setShowPinInput] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
-  
-  // --- DIAGNOSTICS STATE ---
-  const [isAiConfigured, setIsAiConfigured] = useState(false);
 
   // --- PWA INSTALL PROMPT STATE ---
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -104,9 +99,6 @@ export default function App() {
   useEffect(() => {
     StorageService.seedData();
     loadData();
-    
-    // Check API Key configuration on load
-    setIsAiConfigured(GeminiService.checkConnection());
 
     // Listen for PWA install event
     const handleBeforeInstallPrompt = (e: any) => {
@@ -300,25 +292,14 @@ export default function App() {
         reader.onloadend = async () => {
             const base64 = reader.result as string;
             const base64Data = base64.split(',')[1];
-            try {
-                const codes = await GeminiService.extractCodesFromDocument(base64Data);
-                
-                if (codes && codes.length > 0) {
-                    setBatchSearchResults(codes);
-                    setSearchTerm(''); // LIMPIAR EL BUSCADOR PARA EVITAR CONFLICTOS
-                    // CAMBIO: Mensaje más genérico para no confundir al usuario
-                    showToast(`Lectura completada. Buscando coincidencias...`, 'success');
-                } else {
-                    showToast('No se encontraron códigos válidos en la imagen', 'error');
-                }
-            } catch (error: any) {
-                // Catch specific API Key error
-                if (error.message === 'MISSING_API_KEY') {
-                    showToast('⚠️ ERROR: Falta Configurar VITE_API_KEY en el servidor', 'error');
-                } else {
-                    showToast('Error al procesar la imagen', 'error');
-                }
-                console.error(error);
+            const codes = await GeminiService.extractCodesFromDocument(base64Data);
+            
+            if (codes && codes.length > 0) {
+                setBatchSearchResults(codes);
+                setSearchTerm(''); // LIMPIAR EL BUSCADOR PARA EVITAR CONFLICTOS
+                showToast(`Se encontraron ${codes.length} equipos en el documento`, 'success');
+            } else {
+                showToast('No se encontraron códigos válidos en la imagen', 'error');
             }
             setIsScanningBatch(false);
         };
@@ -326,7 +307,7 @@ export default function App() {
     } catch (error) {
         console.error(error);
         setIsScanningBatch(false);
-        showToast('Error al leer el archivo', 'error');
+        showToast('Error al procesar la imagen', 'error');
     } finally {
         if (batchFileRef.current) batchFileRef.current.value = '';
     }
@@ -861,7 +842,7 @@ export default function App() {
                       setDarkMode(!darkMode);
                       showToast(!darkMode ? 'Modo Oscuro activado' : 'Modo Claro activado', 'info');
                   }}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors text-slate-200 mb-2"
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 transition-colors text-slate-200"
                 >
                   <div className="flex items-center gap-3">
                      {darkMode ? <Moon size={18} className="text-yellow-400"/> : <Sun size={18} className="text-yellow-400"/>}
@@ -871,17 +852,6 @@ export default function App() {
                       <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} ></div>
                   </div>
                 </button>
-                
-                {/* AI CONNECTION STATUS */}
-                <div className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors border ${isAiConfigured ? 'bg-green-900/20 border-green-800' : 'bg-red-900/20 border-red-800'}`}>
-                    <div className="flex items-center gap-3">
-                        {isAiConfigured ? <Wifi size={18} className="text-green-500"/> : <WifiOff size={18} className="text-red-500"/>}
-                        <span className={`text-sm font-medium ${isAiConfigured ? 'text-green-400' : 'text-red-400'}`}>
-                            {isAiConfigured ? 'API AI Conectada' : 'Falta API Key'}
-                        </span>
-                    </div>
-                    {isAiConfigured ? <CheckCircle2 size={16} className="text-green-500"/> : <AlertTriangle size={16} className="text-red-500"/>}
-                </div>
               </div>
 
               {/* DEV MODE & FOOTER (DISCREET) */}
@@ -1011,7 +981,7 @@ export default function App() {
                    
                    {batchSearchResults && (
                        <div className="mt-2 flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded text-sm text-blue-700 dark:text-blue-300">
-                           <span className="flex items-center gap-2"><ScanLine size={14} /> Filtro Activo: {filteredData.length} equipos encontrados</span>
+                           <span className="flex items-center gap-2"><ScanLine size={14} /> Filtro Activo: {batchSearchResults.length} equipos</span>
                            <button onClick={() => setBatchSearchResults(null)} className="ml-2 p-1 hover:bg-blue-100 rounded-full"><X size={14} /></button>
                        </div>
                    )}
