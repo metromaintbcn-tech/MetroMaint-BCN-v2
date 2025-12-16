@@ -297,7 +297,8 @@ export default function App() {
             if (codes && codes.length > 0) {
                 setBatchSearchResults(codes);
                 setSearchTerm(''); // LIMPIAR EL BUSCADOR PARA EVITAR CONFLICTOS
-                showToast(`Se encontraron ${codes.length} equipos en el documento`, 'success');
+                // CAMBIO: Mensaje más genérico para no confundir al usuario
+                showToast(`Lectura completada. Buscando coincidencias...`, 'success');
             } else {
                 showToast('No se encontraron códigos válidos en la imagen', 'error');
             }
@@ -981,7 +982,7 @@ export default function App() {
                    
                    {batchSearchResults && (
                        <div className="mt-2 flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded text-sm text-blue-700 dark:text-blue-300">
-                           <span className="flex items-center gap-2"><ScanLine size={14} /> Filtro Activo: {batchSearchResults.length} equipos</span>
+                           <span className="flex items-center gap-2"><ScanLine size={14} /> Filtro Activo: {filteredData.length} equipos encontrados</span>
                            <button onClick={() => setBatchSearchResults(null)} className="ml-2 p-1 hover:bg-blue-100 rounded-full"><X size={14} /></button>
                        </div>
                    )}
