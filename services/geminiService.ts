@@ -160,13 +160,24 @@ export const GeminiService = {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash', // Usamos el modelo Flash (rápido y económico)
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
                 { text: `
-                    Analiza este listado. Extrae TODOS los códigos de equipo o NES encontrados.
-                    Devuelve JSON array de strings: ["123PE", "PA 01-10-05"].
+                    Analiza esta hoja de mantenimiento. Céntrate en las filas impresas de la tabla.
+                    
+                    EXTRAE LOS SIGUIENTES DATOS DE LAS COLUMNAS:
+                    1. Columna "U. TÈCNICA" -> Extrae el código NES (Ej: "NES004PE").
+                    2. Columna "DESCRIPCIÓ U.T." -> Busca códigos de equipo (Ej: "PE 1-13-1").
+                    
+                    REGLA DE NORMALIZACIÓN (CRÍTICA):
+                    - Si ves un código corto como "PE 1-13-1", transfórmalo a formato estándar con ceros: "PE 01-13-01".
+                    - Si ves "PA 1-5-2", devuélvelo como "PA 01-05-02".
+                    - Formato deseado: AA 00-00-00.
+
+                    Devuelve ÚNICAMENTE un array JSON de strings con los códigos encontrados (NES y Equipos).
+                    Ejemplo: ["NES004PE", "PE 01-13-01", "NES005PE", "PE 01-14-01"]
                 `}
             ]
         }
