@@ -2,55 +2,50 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
 // --- CONFIGURACIÓN DE GEMINI ---
-// NOTA DE SEGURIDAD:
-// Esta aplicación es "Client-Side Only" (sin servidor propio).
-// Por tanto, es NECESARIO exponer la API Key con el prefijo VITE_ para que el navegador pueda llamar a Google.
-// Para mejorar la seguridad, restringe esta API Key en Google Cloud Console para que solo acepte peticiones desde tu dominio (HTTP Referrer).
-
-const getAI = () => {
+const getApiKey = () => {
   let apiKey = "";
-
-  // 1. Intentar acceso estándar de Vite (import.meta.env)
   try {
     // @ts-ignore
     apiKey = import.meta.env.VITE_API_KEY;
-  } catch (e) {
-    // Ignorar error si import.meta no existe
-  }
+  } catch (e) {}
 
-  // 2. Fallback a process.env (si el entorno lo inyecta)
   if (!apiKey && typeof process !== "undefined" && process.env) {
     apiKey = process.env.VITE_API_KEY || process.env.API_KEY;
   }
+  return apiKey;
+};
 
+const getAI = () => {
+  const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("Falta la API Key. Asegúrate de tener VITE_API_KEY en tus variables de entorno en Vercel.");
+    throw new Error("MISSING_API_KEY");
   }
-
-  return new GoogleGenAI({ apiKey: apiKey || '' });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const GeminiService = {
-  // Use Gemini to analyze data and suggest improvements (The "Profiling" request)
+  // Función para verificar estado desde la UI
+  checkConnection: (): boolean => {
+      return !!getApiKey();
+  },
+
+  // Use Gemini to analyze data and suggest improvements
   analyzeDataAndProfile: async (records: MaintenanceRecord[], query: string) => {
     try {
       const ai = getAI();
       const totalRecords = records.length;
       
-      // OPTIMIZATION: Previously limited to 600. Increased to 5000 to cover more devices.
-      // Gemini Flash has a large context window, so we can send more data.
-      // We strip unnecessary data to reduce payload size while maintaining context.
       const LIMIT = 5000;
       const cleanRecords = records.slice(0, LIMIT).map(r => ({
         id: r.id,
-        st: r.station, // Shortened keys to save tokens/bandwidth
+        st: r.station,
         nes: r.nes,
         dev: r.deviceCode,
         type: r.deviceType,
-        loc: r.location, // Localización (especial L9)
+        loc: r.location,
         stat: r.status,
-        reads: r.readings, // Included readings for analysis
-        note: r.notes ? r.notes.substring(0, 50) : undefined // Truncate notes
+        reads: r.readings,
+        note: r.notes ? r.notes.substring(0, 50) : undefined
       }));
 
       const contextData = JSON.stringify(cleanRecords);
@@ -103,8 +98,8 @@ export const GeminiService = {
       return response.text;
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      if (error.message && error.message.includes("API_KEY")) {
-        return "⚠️ CONFIGURACIÓN REQUERIDA: No se detectó la variable de entorno VITE_API_KEY. Verifica tu configuración en Vercel.";
+      if (error.message === "MISSING_API_KEY" || (error.message && error.message.includes("API_KEY"))) {
+        return "⚠️ **ERROR DE CONFIGURACIÓN EN EL SERVIDOR**\n\nNo se detectó la `VITE_API_KEY` en las variables de entorno del despliegue (Vercel/Firebase).\n\n**Solución:**\nVe al panel de control de tu hosting y añade la variable de entorno `VITE_API_KEY` con tu clave de Google AI.";
       }
       return "Hubo un error de conexión con la IA. Intenta de nuevo más tarde.";
     }
@@ -115,7 +110,6 @@ export const GeminiService = {
     try {
       const ai = getAI();
       
-      // Use gemini-2.5-flash for multimodal input
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash', 
         contents: {
@@ -151,7 +145,8 @@ export const GeminiService = {
       return JSON.parse(cleanText);
     } catch (error: any) {
       console.error("OCR Error:", error);
-      throw new Error("No se pudo procesar la imagen. Verifica la API KEY.");
+      if (error.message === "MISSING_API_KEY") throw error; // Re-throw to UI
+      throw new Error("No se pudo procesar la imagen.");
     }
   },
 
@@ -168,8 +163,8 @@ export const GeminiService = {
                     Analiza esta hoja de mantenimiento. Céntrate en las filas impresas de la tabla.
                     
                     EXTRAE LOS SIGUIENTES DATOS DE LAS COLUMNAS:
-                    1. Columna "U. TÈCNICA" -> Extrae el código NES (Ej: "NES004PE").
-                    2. Columna "DESCRIPCIÓ U.T." -> Busca códigos de equipo (Ej: "PE 1-13-1").
+                    1. Columna "U. TÈCNICA" o "NES" -> Extrae el código (Ej: "NES004PE").
+                    2. Columna "DESCRIPCIÓ U.T." o "EQUIPO" -> Busca códigos de equipo (Ej: "PE 1-13-1").
                     
                     REGLA DE NORMALIZACIÓN (CRÍTICA):
                     - Si ves un código corto como "PE 1-13-1", transfórmalo a formato estándar con ceros: "PE 01-13-01".
@@ -188,8 +183,9 @@ export const GeminiService = {
       const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const result = JSON.parse(cleanText);
       return Array.isArray(result) ? result : [];
-    } catch (error) {
+    } catch (error: any) {
         console.error("Batch OCR Error:", error);
+        if (error.message === "MISSING_API_KEY") throw error; // Re-throw to UI
         return [];
     }
   }
