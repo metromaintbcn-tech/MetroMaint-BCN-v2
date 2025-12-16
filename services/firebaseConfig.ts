@@ -3,14 +3,29 @@ import firebase from "firebase/compat/app";
 import { getFirestore } from "firebase/firestore";
 
 // --- CONFIGURACIÓN DE FIREBASE (MetroMaint BCN) ---
-// NOTA DE SEGURIDAD:
-// La API KEY ha sido eliminada del código fuente para cumplir con las políticas de GitHub.
-// Debes configurar la variable de entorno 'FIREBASE_API_KEY' en tu hosting (Vercel/Netlify)
-// o en un archivo .env.local para desarrollo local.
-// Tu clave es: AIzaSyB6KZdn99OJYRx0c9Sdf6hmjnpHV1uLb3Y
+// NOTA DE SEGURIDAD SOBRE EL AVISO DE VERCEL:
+// Es correcto y seguro usar VITE_FIREBASE_API_KEY aquí. 
+// Las API Keys de Firebase están diseñadas para ser públicas en el código cliente.
+// La seguridad real se gestiona mediante las "Reglas de Seguridad de Firestore" en la consola de Firebase.
+
+let firebaseApiKey = "";
+
+try {
+  // Intentamos acceder a la variable de Vite. 
+  // Si el build funciona bien, esto se reemplaza por el string de la clave.
+  // @ts-ignore
+  firebaseApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+} catch (error) {
+  console.warn("Error accediendo a import.meta.env:", error);
+}
+
+// Fallback: Si lo anterior falló o devolvió undefined, intentamos process.env (compatibilidad)
+if (!firebaseApiKey && typeof process !== "undefined" && process.env) {
+  firebaseApiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+}
 
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY, // Se leerá solo desde el entorno
+  apiKey: firebaseApiKey,
   authDomain: "metromaint-bcn.firebaseapp.com",
   projectId: "metromaint-bcn",
   storageBucket: "metromaint-bcn.firebasestorage.app",

@@ -2,18 +2,31 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
 // --- CONFIGURACIÓN DE GEMINI ---
-// La clave API debe estar configurada en las variables de entorno de tu servidor/hosting.
-// Variable: API_KEY
+// NOTA DE SEGURIDAD:
+// Esta aplicación es "Client-Side Only" (sin servidor propio).
+// Por tanto, es NECESARIO exponer la API Key con el prefijo VITE_ para que el navegador pueda llamar a Google.
+// Para mejorar la seguridad, restringe esta API Key en Google Cloud Console para que solo acepte peticiones desde tu dominio (HTTP Referrer).
 
 const getAI = () => {
-  // Obtenemos la clave EXCLUSIVAMENTE del entorno.
-  // Nunca escribas la clave real aquí para evitar alertas de seguridad de GitHub.
-  const apiKey = process.env.API_KEY;
-  
-  if (!apiKey) {
-    console.error("Falta la API Key de Gemini. Asegúrate de configurar la variable de entorno API_KEY en tu plataforma de despliegue (Vercel, Netlify, etc).");
-    // No lanzamos error aquí para permitir que la app cargue, pero las llamadas fallarán controladamente.
+  let apiKey = "";
+
+  // 1. Intentar acceso estándar de Vite (import.meta.env)
+  try {
+    // @ts-ignore
+    apiKey = import.meta.env.VITE_API_KEY;
+  } catch (e) {
+    // Ignorar error si import.meta no existe
   }
+
+  // 2. Fallback a process.env (si el entorno lo inyecta)
+  if (!apiKey && typeof process !== "undefined" && process.env) {
+    apiKey = process.env.VITE_API_KEY || process.env.API_KEY;
+  }
+
+  if (!apiKey) {
+    console.error("Falta la API Key. Asegúrate de tener VITE_API_KEY en tus variables de entorno en Vercel.");
+  }
+
   return new GoogleGenAI({ apiKey: apiKey || '' });
 };
 
@@ -90,8 +103,8 @@ export const GeminiService = {
       return response.text;
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      if (error.message.includes("API_KEY")) {
-        return "⚠️ CONFIGURACIÓN REQUERIDA: No se detectó la variable de entorno API_KEY en el servidor.";
+      if (error.message && error.message.includes("API_KEY")) {
+        return "⚠️ CONFIGURACIÓN REQUERIDA: No se detectó la variable de entorno VITE_API_KEY. Verifica tu configuración en Vercel.";
       }
       return "Hubo un error de conexión con la IA. Intenta de nuevo más tarde.";
     }
@@ -102,10 +115,9 @@ export const GeminiService = {
     try {
       const ai = getAI();
       
-      // NOTE: gemini-2.5-flash-image does NOT support responseSchema/responseMimeType.
-      // We must request JSON in the prompt and parse it manually.
+      // Use gemini-2.5-flash for multimodal input
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image', 
+        model: 'gemini-2.5-flash', 
         contents: {
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
@@ -148,7 +160,7 @@ export const GeminiService = {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-2.5-flash',
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },

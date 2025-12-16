@@ -29,6 +29,19 @@ Para que funcione como una App nativa (pantalla completa, sin barra de navegador
 
 ---
 
+## ⚠️ AVISO DE SEGURIDAD EN VERCEL (Variables de Entorno)
+
+Al configurar las variables en Vercel, verás un aviso amarillo que dice:
+> *"This key, which is prefixed with VITE_ ... might expose sensitive information"*
+
+**ESTO ES NORMAL. NO BORRES EL PREFIJO `VITE_`.**
+
+1.  **VITE_FIREBASE_API_KEY:** Es pública por diseño. Firebase usa reglas de seguridad en la base de datos, no oculta la clave.
+2.  **VITE_API_KEY (Gemini):** Es necesaria en el navegador para que la IA funcione sin servidor intermedio.
+    *   *Recomendación:* Ve a la consola de Google Cloud y restringe esta API Key para que solo acepte peticiones desde tu dominio (`https://tu-app.vercel.app`).
+
+---
+
 ## 🆘 Guía de Mantenimiento del Código (Para el Administrador)
 
 Si necesitas guardar cambios y los botones automáticos fallan, sigue este **"Método Manual Infalible"**:
