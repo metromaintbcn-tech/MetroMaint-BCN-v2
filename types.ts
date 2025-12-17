@@ -32,11 +32,27 @@ export interface ConsumptionReadings {
   vibrationSlow?: number; // Vibración Lenta
   vibrationFast?: number; // Vibración Rápida
 
-  // Nuevos campos de Protecciones Eléctricas
-  fuses?: number;       // Fusibles
-  thermalMin?: number;  // Térmico Min
-  thermalMax?: number;  // Térmico Max
-  regulated?: number;   // Regulado
+  // --- PROTECCIONES ELÉCTRICAS (GRUPO 1: B1 o Rápida) ---
+  fuses1?: number;       // Fusibles 1
+  thermalMin1?: number;  // Térmico Min 1
+  thermalMax1?: number;  // Térmico Max 1
+  regulated1?: number;   // Regulado 1 (A o Hz)
+
+  // --- PROTECCIONES ELÉCTRICAS (GRUPO 2: B2 o Lenta) ---
+  fuses2?: number;       // Fusibles 2
+  thermalMin2?: number;  // Térmico Min 2
+  thermalMax2?: number;  // Térmico Max 2
+  regulated2?: number;   // Regulado 2 (A o Hz)
+
+  // --- CONFIGURACIÓN ---
+  hasVFD?: boolean; // ¿Tiene Variador de Frecuencia? (Para Ventilaciones)
+  
+  // Mantenemos los antiguos por compatibilidad si es necesario, 
+  // aunque la UI usará los nuevos 1 y 2.
+  fuses?: number;       
+  thermalMin?: number;  
+  thermalMax?: number;  
+  regulated?: number;   
 }
 
 export interface MaintenanceRecord {
