@@ -104,8 +104,8 @@ export const GeminiService = {
           return "⏳ **LÍMITE DE VELOCIDAD ALCANZADO**\n\nGoogle ha pausado la conexión momentáneamente porque has hecho muchas peticiones seguidas (Límite del plan gratuito: 5/min).\n\n**Espera 30 segundos** y vuelve a preguntar.";
       }
 
-      if (errStr.includes('503') || errStr.includes('overloaded')) {
-          return "🐢 **SERVIDORES SATURADOS**\n\nLos servidores de Google van lentos. Inténtalo de nuevo.";
+      if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
+          return "🐢 **SERVIDORES SATURADOS**\n\nLos servidores de Google van lentos ahora mismo. Inténtalo de nuevo en unos segundos.";
       }
 
       // ERROR 403: DOMINIO NO PERMITIDO
@@ -198,6 +198,11 @@ export const GeminiService = {
         // RE-LANZAR EL ERROR 429 PARA QUE APP.TSX LO MUESTRE
         if (errStr.includes('429') || errStr.includes('quota') || errStr.includes('exhausted')) {
             throw new Error("⏳ Límite de IA alcanzado (5 peticiones/min). Espera un poco.");
+        }
+        
+        // NUEVO: CONTROL DEL ERROR 503 (OVERLOADED)
+        if (errStr.includes('503') || errStr.includes('overloaded') || errStr.includes('unavailable')) {
+            throw new Error("🐢 Servidores de Google saturados (503). Inténtalo de nuevo en unos segundos.");
         }
         
         if (errStr.includes('403')) throw new Error("Acceso Denegado (403): Revisa dominios en Google Cloud.");

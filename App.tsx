@@ -352,7 +352,14 @@ export default function App() {
         }
     } catch (error: any) {
         console.error(error);
-        const msg = error.message || 'Error al procesar la imagen';
+        let msg = error.message || 'Error al procesar la imagen';
+        
+        // CLEANUP: Si el mensaje parece un JSON feo de Google (ej: {"error":...}), 
+        // mostramos un mensaje genérico más amable.
+        if (msg.includes('{"') || msg.includes('"code":')) {
+             msg = "Error temporal de Google (Saturación). Inténtalo de nuevo.";
+        }
+
         showToast(`⚠️ ${msg}`, 'error');
     } finally {
         setIsScanningBatch(false);
