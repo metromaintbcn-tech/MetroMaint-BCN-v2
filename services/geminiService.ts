@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
-// --- CONFIGURACIÓN DE USO ---
 const DAILY_LIMIT = 50; 
 const RESET_HOUR_SPAIN = 9;
 const SPAIN_TZ = "Europe/Madrid";
@@ -42,34 +41,21 @@ const trackUsage = () => {
 };
 
 export const GeminiService = {
-  getUsage: () => {
-    return getUsageData();
-  },
+  getUsage: () => getUsageData(),
 
   analyzeDataAndProfile: async (records: MaintenanceRecord[], query: string) => {
     try {
       const usage = getUsageData();
-      if (usage.count >= DAILY_LIMIT) {
-          return "🚫 **LÍMITE DIARIO ALCANZADO**\n\nEl contador se reiniciará mañana a las 9:00 AM.";
-      }
+      if (usage.count >= DAILY_LIMIT) return "🚫 **LÍMITE ALCANZADO**\nReintento mañana 9:00 AM.";
 
-      // La clave se obtiene exclusivamente de process.env.API_KEY de forma automática
+      // La clave ahora es inyectada automáticamente por el build (Vite)
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      const LIMIT = 3000;
-      const cleanRecords = records.slice(0, LIMIT).map(r => ({
+      const cleanRecords = records.slice(0, 3000).map(r => ({
         id: r.id, st: r.station, nes: r.nes, dev: r.deviceCode, type: r.deviceType, stat: r.status, reads: r.readings
       }));
 
-      const contextData = JSON.stringify(cleanRecords);
-      const prompt = `Actúa como ingeniero de mantenimiento de Metro BCN.
-      DATOS DEL INVENTARIO: ${contextData}
-      PREGUNTA DEL OPERARIO: "${query}"
-      
-      INSTRUCCIONES:
-      1. Responde de forma muy concisa y técnica.
-      2. Si mencionas equipos específicos, usa el formato: [LINK:{id}|{st} - {nes} ({dev})] para que el operario pueda pulsar sobre ellos.
-      3. Analiza consumos anómalos o falta de lecturas si se solicita.`;
+      const prompt = `Actúa como ingeniero de Metro BCN. Datos: ${JSON.stringify(cleanRecords)}. Consulta: "${query}". Responde técnico y conciso. Usa [LINK:id|label] para equipos.`;
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -77,21 +63,18 @@ export const GeminiService = {
       });
 
       trackUsage(); 
-      return response.text || "No he podido generar una respuesta clara.";
+      return response.text || "Sin respuesta.";
     } catch (error: any) {
-      console.error("Gemini Assistant Error:", error);
-      return `⚠️ Error de conexión: ${error.message || 'La IA no responde. Verifica la clave en el panel de control.'}.`;
+      console.error("AI Error:", error);
+      return `⚠️ Error: ${error.message || 'Sin conexión a IA'}.`;
     }
   },
 
   extractCodesFromDocument: async (base64Image: string): Promise<string[]> => {
     try {
       const usage = getUsageData();
-      if (usage.count >= DAILY_LIMIT) {
-          throw new Error("Límite diario de escaneos alcanzado.");
-      }
+      if (usage.count >= DAILY_LIMIT) throw new Error("Límite diario alcanzado.");
 
-      // La clave se obtiene exclusivamente de process.env.API_KEY de forma automática
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const response = await ai.models.generateContent({
@@ -99,7 +82,7 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Extrae todos los códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05) de esta imagen. Devuelve solo un array JSON de strings.` }
+                { text: `Extrae códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05). Devuelve solo array JSON de strings.` }
             ]
         },
         config: {
@@ -111,15 +94,11 @@ export const GeminiService = {
         }
       });
 
-      const text = response.text;
-      if (!text) return [];
-      
-      const result = JSON.parse(text);
+      const result = JSON.parse(response.text || "[]");
       trackUsage(); 
-      return Array.isArray(result) ? result : [];
+      return result;
     } catch (error: any) {
-        console.error("Gemini OCR Error:", error);
-        throw new Error(error.message || "Fallo en el escáner. Verifica la conexión.");
+        throw new Error("Fallo en escáner: " + error.message);
     }
   }
 };
