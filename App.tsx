@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { MaintenanceRecord, ViewState, DeviceType, EquipmentStatus } from './types';
 import { StorageService } from './services/storageService';
@@ -11,7 +12,7 @@ import {
   StickyNote, AlertTriangle, CheckCircle2, Database, ChevronLeft, ChevronRight,
   ScanLine, Loader2, UploadCloud, Download, Camera, History, Lock, Unlock, Zap,
   Settings, Terminal, Check, Smartphone, FileSpreadsheet, Wifi, WifiOff, Clock,
-  ArrowRight, ShieldAlert, Sparkles
+  ArrowRight, ShieldAlert, Sparkles, RotateCcw
 } from 'lucide-react';
 
 export default function App() {
@@ -40,8 +41,7 @@ export default function App() {
   const [pinInputValue, setPinInputValue] = useState('');
 
   useEffect(() => {
-    StorageService.seedData();
-    loadData();
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -72,11 +72,19 @@ export default function App() {
   }, [recordToDelete, deleteCountdown]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => setToast({ message, type });
-  const loadData = async () => setData(await StorageService.getAll());
+  
+  const loadInitialData = async () => {
+    await StorageService.seedData();
+    const records = await StorageService.getAll();
+    setData(records);
+  };
 
   const handleSave = async (record: MaintenanceRecord) => {
     try {
-      setData(await StorageService.save(record));
+      // Pasamos 'data' para que StorageService actualice localmente sin re-descargar todo
+      const updatedData = await StorageService.save(record, data);
+      setData(updatedData);
+      
       if (returnToAI) { setView('AI_ASSISTANT'); setReturnToAI(false); } else { setView('LIST'); }
       setEditingRecord(null);
       showToast('Datos guardados correctamente');
@@ -85,7 +93,11 @@ export default function App() {
 
   const confirmDelete = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
-    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado', 'info'); } 
+    try { 
+      const updatedData = await StorageService.delete(recordToDelete.id, data);
+      setData(updatedData);
+      showToast('Registro eliminado', 'info'); 
+    } 
     catch (error) { showToast('Error al eliminar', 'error'); } 
     finally { setRecordToDelete(null); }
   };
@@ -118,13 +130,15 @@ export default function App() {
   const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
 
-    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Escaneando equipo...', 'info');
+    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Analizando placa...', 'info');
     try {
         const base64Data = await compressImage(file);
         const codes = await GeminiService.extractCodesFromDocument(base64Data);
         if (codes && codes.length > 0) { 
+          // COMPORTAMIENTO DE BÚSQUEDA:
           setBatchSearchResults(codes); 
           setSearchTerm(''); 
+          setView('LIST'); // Forzamos vista de lista para ver resultados
           showToast(`Encontrados ${codes.length} equipos`, 'success'); 
         } else { 
           showToast('No se detectaron códigos claros', 'error'); 
@@ -148,7 +162,12 @@ export default function App() {
                     newRecords.push({ id: crypto.randomUUID(), station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
                 }
             }
-            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos`, 'success'); }
+            if (newRecords.length > 0) { 
+              await StorageService.importData(newRecords); 
+              const refreshed = await StorageService.getAll(true);
+              setData(refreshed);
+              showToast(`Importados ${newRecords.length} equipos`, 'success'); 
+            }
         } catch (err) { showToast('Error al importar CSV', 'error'); }
     };
     reader.readAsText(file);
@@ -168,16 +187,22 @@ export default function App() {
   const filteredData = data.filter(item => {
     const searchLower = searchTerm.toLowerCase();
     if (showAllRecords && searchTerm === '') return true;
+    
     let matchesBatch = true;
     if (batchSearchResults && batchSearchResults.length > 0) {
         const recordNes = (item.nes || '').toUpperCase().replace(/\s/g, '');
         const recordCode = (item.deviceCode || '').toUpperCase().replace(/\s/g, '');
         matchesBatch = batchSearchResults.some(scanned => {
-            const s = scanned.toUpperCase().replace(/\s/g, ''); if (s.length < 2) return false;
+            const s = scanned.toUpperCase().replace(/\s/g, ''); 
+            if (s.length < 2) return false;
             return (recordNes.length > 0 && recordNes.includes(s)) || (recordCode.length > 0 && recordCode.includes(s));
         });
     }
+    
     if (!matchesBatch) return false;
+    
+    if (searchTerm === '') return matchesBatch;
+
     return (item.station || '').toLowerCase().includes(searchLower) || 
            (item.nes || '').toLowerCase().includes(searchLower) || 
            (item.deviceCode || '').toLowerCase().includes(searchLower);
@@ -221,6 +246,10 @@ export default function App() {
                 <div className={`w-8 h-4 rounded-full relative ${darkMode ? 'bg-blue-600' : 'bg-slate-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
               </button>
               
+              <button onClick={() => { StorageService.getAll(true).then(setData); setMobileMenuOpen(false); showToast('Datos sincronizados'); }} className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-700/50 text-slate-200">
+                <RotateCcw size={18}/> <span>Refrescar de la Nube</span>
+              </button>
+
               {devMode && (
                 <div className="pt-4 border-t border-slate-700 grid grid-cols-2 gap-2">
                   <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
@@ -228,7 +257,7 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.0 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.1 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -280,6 +309,12 @@ export default function App() {
                         </button>
                     )}
                 </div>
+                {batchSearchResults && (
+                    <div className="mt-2 px-2 flex items-center justify-between text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-widest">
+                        <span>Resultados del escáner ({filteredData.length})</span>
+                        <button onClick={() => setBatchSearchResults(null)} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">Limpiar Escáner <X size={12}/></button>
+                    </div>
+                )}
              </div>
           )}
 
@@ -325,9 +360,16 @@ export default function App() {
                 </div>
               ) : (
                 <div className="space-y-5 animate-in fade-in max-w-2xl mx-auto">
-                  {currentRecords.map((item) => (
-                    <RecordCard key={item.id} item={item} onEdit={handleEdit} onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} formatDate={formatDate} />
-                  ))}
+                  {currentRecords.length === 0 ? (
+                    <div className="p-12 text-center text-slate-500 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <Search size={48} className="mx-auto mb-4 opacity-20" />
+                        <p className="font-bold">No se encontraron equipos</p>
+                    </div>
+                  ) : (
+                    currentRecords.map((item) => (
+                        <RecordCard key={item.id} item={item} onEdit={handleEdit} onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} formatDate={formatDate} />
+                    ))
+                  )}
                   {totalPages > 1 && (
                     <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 mt-6 shadow-sm">
                       <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl disabled:opacity-20 transition-all active:scale-90"><ChevronLeft size={24} /></button>

@@ -1,3 +1,4 @@
+
 import { MaintenanceRecord, DeviceType, EquipmentStatus } from '../types';
 import { db } from './firebaseConfig';
 import { 
@@ -12,152 +13,128 @@ import {
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'maintenance_records';
+const CACHE_KEY = 'metro_bcn_data_cache';
 
-// FUNCIÓN DE LIMPIEZA: Elimina cualquier campo 'undefined' del objeto
-// Firebase falla si recibe { location: undefined }, prefiere que no exista la clave.
+// Limpieza de datos para Firebase
 const sanitizeData = (data: any) => {
-  // JSON.stringify ignora automáticamente las claves con valor undefined
-  // Es un truco rápido y robusto para limpiar objetos de datos simples.
   return JSON.parse(JSON.stringify(data));
 };
 
 export const StorageService = {
-  // OBTENER TODOS LOS REGISTROS DE LA NUBE
-  getAll: async (): Promise<MaintenanceRecord[]> => {
+  // OBTENER TODOS LOS REGISTROS (Con Caché para ahorrar cuota)
+  getAll: async (forceRefresh = false): Promise<MaintenanceRecord[]> => {
     try {
+      // Intentar cargar de localStorage primero para velocidad e offline
+      if (!forceRefresh) {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          // Si la caché tiene menos de 5 minutos, la usamos
+          if (Date.now() - parsed.timestamp < 300000) {
+            return parsed.data;
+          }
+        }
+      }
+
       const recordsRef = collection(db, COLLECTION_NAME);
-      // Ordenamos por fecha descendente (lo más nuevo primero)
       const q = query(recordsRef, orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
       
       const data: MaintenanceRecord[] = [];
       querySnapshot.forEach((doc) => {
-        // Combinamos el ID del documento con los datos
         data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
       });
       
+      // Guardar en caché local
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        data: data
+      }));
+      
       return data;
     } catch (error) {
-      console.error("Error al obtener datos de Firebase:", error);
-      // Si falla (ej: sin internet), devolvemos array vacío o podríamos intentar localStorage como backup
-      return [];
+      console.error("Error Firebase getAll:", error);
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached).data : [];
     }
   },
 
-  // GUARDAR O ACTUALIZAR UN REGISTRO
-  save: async (record: MaintenanceRecord): Promise<MaintenanceRecord[]> => {
+  // GUARDAR SIN RE-DESCARGAR TODO (Ahorro de cuota)
+  save: async (record: MaintenanceRecord, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
     try {
-      // Usamos el ID del registro como ID del documento en Firebase
       const docRef = doc(db, COLLECTION_NAME, record.id);
-      
-      // LIMPIEZA DE SEGURIDAD
       const cleanRecord = sanitizeData(record);
-
-      // setDoc crea el documento si no existe, o lo sobrescribe si existe.
       await setDoc(docRef, cleanRecord, { merge: true });
       
-      // Para que la app se actualice rápido, devolvemos la lista completa actualizada
-      return await StorageService.getAll();
+      // Actualizamos la lista local manualmente en lugar de llamar a getAll()
+      const index = currentData.findIndex(r => r.id === record.id);
+      let newData;
+      if (index > -1) {
+        newData = [...currentData];
+        newData[index] = record;
+      } else {
+        newData = [record, ...currentData];
+      }
+
+      // Actualizar caché
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
+      return newData;
     } catch (error) {
-      console.error("Error al guardar en Firebase:", error);
+      console.error("Error Firebase save:", error);
       throw error;
     }
   },
 
-  // ELIMINAR UN REGISTRO
-  delete: async (id: string): Promise<MaintenanceRecord[]> => {
+  // ELIMINAR SIN RE-DESCARGAR TODO
+  delete: async (id: string, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, id));
-      return await StorageService.getAll();
+      const newData = currentData.filter(r => r.id !== id);
+      
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
+      return newData;
     } catch (error) {
-      console.error("Error al eliminar de Firebase:", error);
+      console.error("Error Firebase delete:", error);
       throw error;
     }
   },
 
-  // BORRAR TODO (PELIGROSO - SOLO ADMIN)
-  deleteAll: async (): Promise<MaintenanceRecord[]> => {
+  importData: async (importedData: MaintenanceRecord[]): Promise<void> => {
     try {
-      const recordsRef = collection(db, COLLECTION_NAME);
-      const snapshot = await getDocs(recordsRef);
-      
-      // Firestore no tiene un "delete all", hay que borrar uno a uno o por lotes (batches)
       const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      
-      await batch.commit();
-      return [];
-    } catch (error) {
-      console.error("Error al vaciar la base de datos:", error);
-      throw error;
-    }
-  },
-
-  // IMPORTAR DATOS MASIVOS (CSV)
-  importData: async (importedData: MaintenanceRecord[]): Promise<number> => {
-    try {
-      // Usamos un Batch para que sea más eficiente (escritura en lote)
-      const batch = writeBatch(db);
-      
       importedData.forEach((item) => {
         const docRef = doc(db, COLLECTION_NAME, item.id);
-        
-        // LIMPIEZA CRÍTICA: Eliminar undefineds que rompen el batch
-        const cleanItem = sanitizeData(item);
-        
-        batch.set(docRef, cleanItem, { merge: true });
+        batch.set(docRef, sanitizeData(item), { merge: true });
       });
-
       await batch.commit();
-      return importedData.length;
+      localStorage.removeItem(CACHE_KEY); // Forzamos refresco en el próximo getAll
     } catch (error) {
-      console.error("Error al importar datos masivos:", error);
+      console.error("Error Import:", error);
       throw error;
     }
   },
 
-  // CREAR DATOS DE EJEMPLO SI ESTÁ VACÍA
   seedData: async () => {
+    // Solo ejecutamos seed si no hay caché y no hay internet o es la primera vez
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) return;
+    
     try {
       const recordsRef = collection(db, COLLECTION_NAME);
       const snapshot = await getDocs(recordsRef);
-      
       if (snapshot.empty) {
-        console.log("Base de datos vacía. Insertando datos de ejemplo...");
         const initialData: MaintenanceRecord[] = [
           { 
-            id: 'seed-1', 
-            station: 'Sagrada Familia', 
-            nes: '023PV', 
-            deviceCode: 'VE 01-11-05',
-            deviceType: DeviceType.VENT_ESTACION, 
-            status: EquipmentStatus.OPERATIONAL,
-            readings: { speedFast: 120.5, speedSlow: 80.2 }, 
-            date: new Date().toISOString(),
-            notes: 'Funcionamiento correcto. (Dato de ejemplo)'
-          },
-          { 
-            id: 'seed-2', 
-            station: 'Diagonal', 
-            nes: '150PE', 
-            deviceCode: 'PA 05-11-99',
-            deviceType: DeviceType.POZO_AGOTAMIENTO, 
-            status: EquipmentStatus.INCIDENT,
-            readings: { pump1: 45.2, pump2: 42.1 }, 
-            date: new Date(Date.now() - 86400000).toISOString(),
-            notes: 'Vibración inusual en Bomba 1. (Dato de ejemplo)'
+            id: 'seed-1', station: 'Sagrada Familia', nes: '023PV', deviceCode: 'VE 01-11-05',
+            deviceType: DeviceType.VENT_ESTACION, status: EquipmentStatus.OPERATIONAL,
+            readings: { speedFast: 120.5, speedSlow: 80.2 }, date: new Date().toISOString(),
+            notes: 'Dato inicial de sistema.'
           }
         ];
-        
-        // Insertamos uno a uno
         for (const record of initialData) {
             await setDoc(doc(db, COLLECTION_NAME, record.id), record);
         }
       }
-    } catch (error) {
-        console.error("Error en seedData:", error);
-    }
+    } catch (e) {}
   }
 };
