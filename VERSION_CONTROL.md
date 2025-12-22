@@ -1,20 +1,20 @@
-# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.7
+# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.8
 
 **Fecha:** Actualidad
-**Estado:** Estable / Producción
+**Estado:** Estable / Producción (Restaurada)
 **Descripción:** 
-Solución al error "API Key must be set" y "Fallo en el escáner" en entornos de producción mediante el flujo de selección de claves oficial.
+Corrección de errores críticos de referencia de módulos y fallos de conexión con la IA.
 
-## 🚀 Mejoras de Estabilidad (v1.4.7)
-1. **Gestión de Clave IA:** Implementado el flujo de selección de clave mediante `window.aistudio.openSelectKey()` para garantizar el acceso a la API en el navegador.
-2. **Resiliencia de Conexión:** Acceso seguro a `process.env.API_KEY` y verificación de estado con `hasSelectedApiKey`.
-3. **Instanciación "Just-in-Time":** Se garantiza que `GoogleGenAI` se cree dentro de cada función de servicio para capturar la clave más reciente.
-4. **UI de Activación:** Añadido banner y botón de activación de IA para guiar al operario si la clave no está configurada.
+## 🚀 Mejoras de Estabilidad (v1.4.8)
+1. **Fix de Módulos:** Corregida importación de `lucide-react` (anteriormente `lucide-center` por error).
+2. **IA Directa:** Implementación simplificada de `GoogleGenAI` usando `process.env.API_KEY` directamente en cada llamada, cumpliendo estrictamente con las directrices de seguridad.
+3. **OCR Robusto:** Mantenimiento del esquema JSON para el escáner para evitar errores de parseo.
+4. **Activación Simplificada:** Mantenimiento del botón de activación para casos donde la clave de usuario sea requerida por el sistema.
 
 ## ✅ Características Validadas
-- **Escáner OCR:** Recuperado tras corregir el acceso a la clave.
-- **Asistente IA:** Recuperado tras corregir el acceso a la clave.
-- **Seguridad:** Cumplimiento estricto de las directrices de inyección de claves en entornos AI Studio.
+- **Iconos:** Visibles en toda la interfaz.
+- **Escáner:** Funcional con procesamiento de imagen optimizado.
+- **Asistente:** Respuesta rápida y precisa.
 
 ---
-**AVISO:** Si la IA sigue sin responder después de activar, asegúrate de haber seleccionado una clave de un proyecto de Google Cloud con facturación activa.
+**AVISO:** Si aparece error de clave, use el botón "Activar IA" en el menú lateral para refrescar los permisos del navegador.

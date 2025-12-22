@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MaintenanceRecord, ViewState, DeviceType, EquipmentStatus } from './types';
 import { StorageService } from './services/storageService';
@@ -59,7 +58,7 @@ export default function App() {
         // @ts-ignore
         await window.aistudio.openSelectKey();
         setIsAiConfigured(true);
-        showToast("Selecciona una clave para activar la IA", "info");
+        showToast("Activación de IA iniciada", "info");
         setTimeout(updateAIStatus, 2000);
       } else {
         showToast("Entorno no compatible con selección automática", "error");
@@ -104,14 +103,14 @@ export default function App() {
       setData(await StorageService.save(record));
       if (returnToAI) { setView('AI_ASSISTANT'); setReturnToAI(false); } else { setView('LIST'); }
       setEditingRecord(null);
-      showToast('Datos guardados correctamente');
+      showToast('Datos guardados correctamente en la nube');
     } catch (e) { showToast('Error al guardar. Comprueba tu conexión.', 'error'); }
   };
 
   const confirmDelete = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
-    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado', 'info'); } 
-    catch (error) { showToast('Error al eliminar', 'error'); } 
+    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado correctamente', 'info'); } 
+    catch (error) { showToast('Error al eliminar el registro', 'error'); } 
     finally { setRecordToDelete(null); }
   };
 
@@ -132,9 +131,9 @@ export default function App() {
           const canvas = document.createElement('canvas');
           canvas.width = width; canvas.height = height;
           const ctx = canvas.getContext('2d');
-          if (!ctx) { reject(new Error("Canvas context error")); return; }
+          if (!ctx) { reject(new Error("No se pudo crear el contexto del canvas")); return; }
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+          resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
         };
       };
     });
@@ -144,17 +143,22 @@ export default function App() {
     const file = e.target.files?.[0]; if (!file) return;
 
     if (!isAiConfigured) {
-      showToast("Activa la IA primero", "error");
+      showToast("Activa la IA primero para usar el escáner", "error");
       handleActivateAI();
       return;
     }
 
-    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Escaneando equipo...', 'info');
+    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Analizando...', 'info');
     try {
         const base64Data = await compressImage(file);
         const codes = await GeminiService.extractCodesFromDocument(base64Data);
-        if (codes && codes.length > 0) { setBatchSearchResults(codes); setSearchTerm(''); showToast(`Encontrados ${codes.length} equipos`, 'success'); } 
-        else { showToast('No se detectaron códigos claros', 'error'); }
+        if (codes && codes.length > 0) { 
+          setBatchSearchResults(codes); 
+          setSearchTerm(''); 
+          showToast(`¡Éxito! Encontrados ${codes.length} equipos.`, 'success'); 
+        } else { 
+          showToast('No se encontraron códigos válidos.', 'error'); 
+        }
     } catch (error: any) { 
         showToast(`⚠️ ${error.message || 'Error en el escáner'}`, 'error');
         updateAIStatus();
@@ -166,30 +170,32 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const text = evt.target?.result as string;
+            const text = evt.target?.result as string; if (!text) return;
             const lines = text.split(/\r\n|\n/); const newRecords: MaintenanceRecord[] = [];
             const separator = lines[0].includes(';') ? ';' : ',';
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].trim().split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
                 if (cols.length >= 2) {
-                    newRecords.push({ id: crypto.randomUUID(), station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
+                    const id = crypto.randomUUID();
+                    newRecords.push({ id, station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
                 }
             }
-            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos`, 'success'); }
-        } catch (err) { showToast('Error al importar CSV', 'error'); }
+            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos.`, 'success'); }
+        } catch (err) { showToast('Error crítico al leer CSV.', 'error'); }
     };
     reader.readAsText(file);
   };
 
   const handleExportCSV = () => {
-    const headers = ['Estación', 'NES', 'Código', 'Tipo', 'Estado', 'Fecha'];
-    const rows = data.map(item => [item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
+    const headers = ['ID', 'Estación', 'NES', 'Código Equipo', 'Tipo', 'Estado', 'Fecha ISO'];
+    const rows = data.map(item => [item.id, item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `metro_bcn_mantenimiento.csv`;
-    link.click();
+    link.setAttribute('href', url); link.setAttribute('download', `metro_informe.csv`);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    showToast('Informe CSV descargado', 'success');
   };
 
   const filteredData = data.filter(item => {
@@ -205,9 +211,10 @@ export default function App() {
         });
     }
     if (!matchesBatch) return false;
-    return (item.station || '').toLowerCase().includes(searchLower) || 
-           (item.nes || '').toLowerCase().includes(searchLower) || 
-           (item.deviceCode || '').toLowerCase().includes(searchLower);
+    const stationMatch = (item.station || '').toLowerCase().includes(searchLower);
+    const nesMatch = (item.nes || '').toLowerCase().includes(searchLower);
+    const codeMatch = (item.deviceCode || '').toLowerCase().includes(searchLower);
+    return stationMatch || nesMatch || codeMatch;
   }).sort((a, b) => (a.deviceCode || '').localeCompare(b.deviceCode || '', undefined, { numeric: true }));
 
   const activeIncidents = data.filter(item => item.status === EquipmentStatus.INCIDENT);
@@ -262,7 +269,7 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.7 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.8 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>

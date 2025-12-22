@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
@@ -6,16 +5,6 @@ import { MaintenanceRecord } from "../types";
 const DAILY_LIMIT = 50; 
 const RESET_HOUR_SPAIN = 9;
 const SPAIN_TZ = "Europe/Madrid";
-
-// Helper para obtener la clave de forma segura
-const getApiKey = () => {
-  try {
-    // @ts-ignore
-    return process.env.API_KEY || "";
-  } catch {
-    return "";
-  }
-};
 
 const getUsageData = () => {
   const stored = localStorage.getItem('ai_usage_stats');
@@ -54,7 +43,8 @@ const trackUsage = () => {
 
 export const GeminiService = {
   checkConnection: async (): Promise<boolean> => {
-      const key = getApiKey();
+      // Verificación directa de la clave inyectada
+      const key = process.env.API_KEY;
       if (key && key.length > 10) return true;
       
       try {
@@ -64,7 +54,7 @@ export const GeminiService = {
           return await window.aistudio.hasSelectedApiKey();
         }
       } catch (e) {
-        console.warn("AI Status Check Error:", e);
+        console.warn("Error verificando conexión IA:", e);
       }
       return false;
   },
@@ -80,12 +70,8 @@ export const GeminiService = {
           return "🚫 **LÍMITE DIARIO ALCANZADO**\n\nEl contador se reiniciará mañana a las 9:00 AM.";
       }
 
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        throw new Error("Clave de API no disponible. Por favor, activa la IA desde el menú.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      // Inicialización estrictamente según reglas
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const LIMIT = 3000;
       const cleanRecords = records.slice(0, LIMIT).map(r => ({
@@ -114,7 +100,7 @@ export const GeminiService = {
       if (error.message?.includes("API Key") || error.message?.includes("must be set")) {
         return "⚠️ **ERROR DE CLAVE**: No se ha detectado una clave de API válida. Pulsa 'Activar IA' en el menú lateral.";
       }
-      return `⚠️ Error de conexión: ${error.message || 'Fallo al procesar la solicitud'}.`;
+      return `⚠️ Error de conexión: ${error.message || 'La IA no responde'}.`;
     }
   },
 
@@ -125,12 +111,8 @@ export const GeminiService = {
           throw new Error("Límite diario de escaneos alcanzado.");
       }
 
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        throw new Error("Clave de API no disponible.");
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
+      // Inicialización estrictamente según reglas
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
