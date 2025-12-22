@@ -1,20 +1,20 @@
-# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.6
+# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.7
 
 **Fecha:** Actualidad
 **Estado:** Estable / Producción
 **Descripción:** 
-Corrección técnica de los servicios de IA (Escáner y Asistente).
+Solución al error "API Key must be set" y "Fallo en el escáner" en entornos de producción mediante el flujo de selección de claves oficial.
 
-## 🚀 Mejoras Técnicas (v1.4.6)
-1. **IA Fix:** Inicialización de GoogleGenAI movida al interior de los métodos para asegurar captura de API_KEY.
-2. **OCR JSON Schema:** Implementado `responseSchema` para el escáner, garantizando que los resultados sean siempre un array válido.
-3. **Limpieza de Configuración:** Eliminado el mapeo manual de variables de entorno en Vite que causaba conflictos.
-4. **Resiliencia:** Mejora en el manejo de errores de red y cuotas de API.
+## 🚀 Mejoras de Estabilidad (v1.4.7)
+1. **Gestión de Clave IA:** Implementado el flujo de selección de clave mediante `window.aistudio.openSelectKey()` para garantizar el acceso a la API en el navegador.
+2. **Resiliencia de Conexión:** Acceso seguro a `process.env.API_KEY` y verificación de estado con `hasSelectedApiKey`.
+3. **Instanciación "Just-in-Time":** Se garantiza que `GoogleGenAI` se cree dentro de cada función de servicio para capturar la clave más reciente.
+4. **UI de Activación:** Añadido banner y botón de activación de IA para guiar al operario si la clave no está configurada.
 
 ## ✅ Características Validadas
-- **Escáner:** Extracción de códigos NES y de Equipo funcional.
-- **Asistente:** Análisis de inventario y detección de anomalías operativo.
-- **Buscador:** Foco persistente y contraste alto.
+- **Escáner OCR:** Recuperado tras corregir el acceso a la clave.
+- **Asistente IA:** Recuperado tras corregir el acceso a la clave.
+- **Seguridad:** Cumplimiento estricto de las directrices de inyección de claves en entornos AI Studio.
 
 ---
-**AVISO:** Esta versión restablece la funcionalidad inteligente de la aplicación.
+**AVISO:** Si la IA sigue sin responder después de activar, asegúrate de haber seleccionado una clave de un proyecto de Google Cloud con facturación activa.

@@ -12,7 +12,7 @@ import {
   StickyNote, AlertTriangle, CheckCircle2, Database, ChevronLeft, ChevronRight,
   ScanLine, Loader2, UploadCloud, Download, Camera, History, Lock, Unlock, Zap,
   Settings, Terminal, Check, Smartphone, FileSpreadsheet, Wifi, WifiOff, Clock,
-  ArrowRight
+  ArrowRight, ShieldAlert, Sparkles
 } from 'lucide-react';
 
 export default function App() {
@@ -30,7 +30,6 @@ export default function App() {
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [recordToDelete, setRecordToDelete] = useState<MaintenanceRecord | null>(null);
   const [deleteCountdown, setDeleteCountdown] = useState(0);
-  const [showMassDeleteModal, setShowMassDeleteModal] = useState(false);
   const [batchSearchResults, setBatchSearchResults] = useState<string[] | null>(null);
   const [isScanningBatch, setIsScanningBatch] = useState(false);
   const batchFileRef = useRef<HTMLInputElement>(null);
@@ -41,16 +40,34 @@ export default function App() {
   const [showPinInput, setShowPinInput] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
   const [isAiConfigured, setIsAiConfigured] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
     StorageService.seedData();
     loadData();
-    setIsAiConfigured(GeminiService.checkConnection());
-    const handleBeforeInstallPrompt = (e: any) => { e.preventDefault(); setInstallPrompt(e); };
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    updateAIStatus();
   }, []);
+
+  const updateAIStatus = async () => {
+    const isConnected = await GeminiService.checkConnection();
+    setIsAiConfigured(isConnected);
+  };
+
+  const handleActivateAI = async () => {
+    try {
+      // @ts-ignore
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        // @ts-ignore
+        await window.aistudio.openSelectKey();
+        setIsAiConfigured(true);
+        showToast("Selecciona una clave para activar la IA", "info");
+        setTimeout(updateAIStatus, 2000);
+      } else {
+        showToast("Entorno no compatible con selección automática", "error");
+      }
+    } catch (e) {
+      showToast("Fallo al abrir selector de clave", "error");
+    }
+  };
 
   useEffect(() => {
     if (toast) {
@@ -82,25 +99,19 @@ export default function App() {
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => setToast({ message, type });
   const loadData = async () => setData(await StorageService.getAll());
 
-  const handleUnlockDevMode = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (pinInputValue === '8386') { setDevMode(true); setShowPinInput(false); setPinInputValue(''); showToast('Modo Desarrollador activado', 'success'); } 
-      else { showToast('PIN Incorrecto', 'error'); setPinInputValue(''); }
-  };
-
   const handleSave = async (record: MaintenanceRecord) => {
     try {
       setData(await StorageService.save(record));
       if (returnToAI) { setView('AI_ASSISTANT'); setReturnToAI(false); } else { setView('LIST'); }
       setEditingRecord(null);
-      showToast('Datos guardados correctamente en la nube');
+      showToast('Datos guardados correctamente');
     } catch (e) { showToast('Error al guardar. Comprueba tu conexión.', 'error'); }
   };
 
   const confirmDelete = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
-    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado correctamente', 'info'); } 
-    catch (error) { showToast('Error al eliminar el registro', 'error'); } 
+    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado', 'info'); } 
+    catch (error) { showToast('Error al eliminar', 'error'); } 
     finally { setRecordToDelete(null); }
   };
 
@@ -121,9 +132,9 @@ export default function App() {
           const canvas = document.createElement('canvas');
           canvas.width = width; canvas.height = height;
           const ctx = canvas.getContext('2d');
-          if (!ctx) { reject(new Error("No se pudo crear el contexto del canvas")); return; }
+          if (!ctx) { reject(new Error("Canvas context error")); return; }
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+          resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
         };
       };
     });
@@ -131,14 +142,23 @@ export default function App() {
 
   const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Optimizando imagen y analizando...', 'info');
+
+    if (!isAiConfigured) {
+      showToast("Activa la IA primero", "error");
+      handleActivateAI();
+      return;
+    }
+
+    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Escaneando equipo...', 'info');
     try {
         const base64Data = await compressImage(file);
         const codes = await GeminiService.extractCodesFromDocument(base64Data);
-        if (codes && codes.length > 0) { setBatchSearchResults(codes); setSearchTerm(''); showToast(`¡Éxito! Filtro activo con ${codes.length} equipos.`, 'success'); } 
-        else { showToast('No se encontraron códigos válidos. Intenta enfocar mejor.', 'error'); }
-    } catch (error: any) { showToast(`⚠️ Error al procesar imagen`, 'error'); } 
-    finally { setIsScanningBatch(false); if (batchFileRef.current) batchFileRef.current.value = ''; }
+        if (codes && codes.length > 0) { setBatchSearchResults(codes); setSearchTerm(''); showToast(`Encontrados ${codes.length} equipos`, 'success'); } 
+        else { showToast('No se detectaron códigos claros', 'error'); }
+    } catch (error: any) { 
+        showToast(`⚠️ ${error.message || 'Error en el escáner'}`, 'error');
+        updateAIStatus();
+    } finally { setIsScanningBatch(false); if (batchFileRef.current) batchFileRef.current.value = ''; }
   };
 
   const handleImportChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,32 +166,30 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const text = evt.target?.result as string; if (!text) return;
+            const text = evt.target?.result as string;
             const lines = text.split(/\r\n|\n/); const newRecords: MaintenanceRecord[] = [];
             const separator = lines[0].includes(';') ? ';' : ',';
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].trim().split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
                 if (cols.length >= 2) {
-                    const id = crypto.randomUUID();
-                    newRecords.push({ id, station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
+                    newRecords.push({ id: crypto.randomUUID(), station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
                 }
             }
-            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos.`, 'success'); }
-        } catch (err) { showToast('Error crítico al leer CSV.', 'error'); }
+            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos`, 'success'); }
+        } catch (err) { showToast('Error al importar CSV', 'error'); }
     };
     reader.readAsText(file);
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Estación', 'NES', 'Código Equipo', 'Tipo', 'Estado', 'Fecha ISO'];
-    const rows = data.map(item => [item.id, item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
+    const headers = ['Estación', 'NES', 'Código', 'Tipo', 'Estado', 'Fecha'];
+    const rows = data.map(item => [item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', url); link.setAttribute('download', `metro_informe.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    showToast('Informe CSV descargado', 'success');
+    link.href = URL.createObjectURL(blob);
+    link.download = `metro_bcn_mantenimiento.csv`;
+    link.click();
   };
 
   const filteredData = data.filter(item => {
@@ -187,10 +205,9 @@ export default function App() {
         });
     }
     if (!matchesBatch) return false;
-    const stationMatch = (item.station || '').toLowerCase().includes(searchLower);
-    const nesMatch = (item.nes || '').toLowerCase().includes(searchLower);
-    const codeMatch = (item.deviceCode || '').toLowerCase().includes(searchLower);
-    return stationMatch || nesMatch || codeMatch;
+    return (item.station || '').toLowerCase().includes(searchLower) || 
+           (item.nes || '').toLowerCase().includes(searchLower) || 
+           (item.deviceCode || '').toLowerCase().includes(searchLower);
   }).sort((a, b) => (a.deviceCode || '').localeCompare(b.deviceCode || '', undefined, { numeric: true }));
 
   const activeIncidents = data.filter(item => item.status === EquipmentStatus.INCIDENT);
@@ -230,6 +247,14 @@ export default function App() {
                 <div className="flex items-center gap-3">{darkMode ? <Moon size={18}/> : <Sun size={18}/>}<span>Modo {darkMode ? 'Oscuro' : 'Claro'}</span></div>
                 <div className={`w-8 h-4 rounded-full relative ${darkMode ? 'bg-blue-600' : 'bg-slate-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
               </button>
+              
+              {!isAiConfigured && (
+                 <button onClick={handleActivateAI} className="w-full flex items-center gap-3 p-3 rounded-lg bg-red-600 text-white font-bold animate-pulse">
+                    <Sparkles size={18}/>
+                    <span>Activar Funciones IA</span>
+                 </button>
+              )}
+
               {devMode && (
                 <div className="pt-4 border-t border-slate-700 grid grid-cols-2 gap-2">
                   <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
@@ -237,13 +262,25 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.5 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.7 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
 
         <main className="flex-1 container mx-auto px-4 py-6">
-          {/* SECCIÓN DE INCIDENCIAS ACTIVAS (ARRIBA) - SOLO EN HOME */}
+          {view === 'LIST' && !isAiConfigured && (
+              <div className="mb-6 p-4 bg-red-100 border border-red-200 rounded-2xl flex items-center justify-between shadow-sm animate-in slide-in-from-top duration-300">
+                  <div className="flex items-center gap-3 text-red-800">
+                      <ShieldAlert size={24} className="shrink-0" />
+                      <div>
+                          <p className="font-black text-sm uppercase leading-none mb-1">IA Desactivada</p>
+                          <p className="text-[10px] font-bold opacity-80">Activa la IA para usar el Escáner y el Asistente.</p>
+                      </div>
+                  </div>
+                  <button onClick={handleActivateAI} className="px-4 py-2 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-500/20 active:scale-95 transition-transform">Activar</button>
+              </div>
+          )}
+
           {view === 'LIST' && !isSearchActive && activeIncidents.length > 0 && (
             <div className="mb-8 animate-in slide-in-from-top duration-500">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -251,11 +288,7 @@ export default function App() {
                         <AlertTriangle className="text-amber-600" size={20} />
                         <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Incidencias Activas</h2>
                     </div>
-                    <span className="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs font-black px-2 py-1 rounded-full border border-amber-300 dark:border-amber-800">
-                        {activeIncidents.length} EQUIPOS
-                    </span>
                 </div>
-                
                 <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x">
                     {activeIncidents.map(incident => (
                         <div 
@@ -268,17 +301,12 @@ export default function App() {
                                 <span className="text-[10px] text-slate-500 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter"><Clock size={10} /> {formatDate(incident.date).split(',')[0]}</span>
                             </div>
                             <h3 className="font-black text-slate-950 dark:text-white text-sm truncate mb-1 tracking-tight">{incident.station}</h3>
-                            <div className="flex items-start gap-1.5 text-xs text-slate-700 dark:text-slate-400 line-clamp-2 italic min-h-[2.5rem]">
-                                <StickyNote size={12} className="shrink-0 mt-0.5 opacity-50 text-slate-400" />
-                                <span>{incident.notes || 'Sin observaciones registradas...'}</span>
-                            </div>
                         </div>
                     ))}
                 </div>
             </div>
           )}
 
-          {/* BUSCADOR UNIFICADO (PARA EVITAR PÉRDIDA DE FOCO) */}
           {view === 'LIST' && (
              <div className="max-w-2xl mx-auto w-full mb-8">
                 <div className="relative group">
@@ -299,11 +327,6 @@ export default function App() {
                         </button>
                     )}
                 </div>
-                {!isSearchActive && (
-                    <button onClick={() => setShowAllRecords(true)} className="mt-4 text-xs font-bold text-slate-500 dark:text-slate-500 mx-auto flex gap-1.5 justify-center hover:text-slate-800 transition-colors uppercase tracking-widest">
-                        <ListIcon size={14}/>Ver todo el inventario
-                    </button>
-                )}
              </div>
           )}
 
@@ -311,71 +334,55 @@ export default function App() {
             <>
               {!isSearchActive ? (
                 <div className="flex flex-col items-center justify-start max-w-2xl mx-auto w-full animate-in fade-in">
-                    {/* BOTONES DE ACCIÓN PRINCIPALES */}
                     <div className="grid grid-cols-2 gap-4 w-full px-4 mb-10">
                         <button onClick={() => { setEditingRecord(null); setView('ADD'); }} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-700 group">
                            <div className="h-14 w-14 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors"><Plus className="text-blue-700 group-hover:text-white" size={28} /></div>
                            <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Nuevo</span>
                         </button>
-                        <button onClick={() => batchFileRef.current?.click()} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:border-red-400 dark:hover:border-red-700 group">
-                           <div className="h-14 w-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-600 transition-colors">
-                                {isScanningBatch ? <Loader2 className="animate-spin text-red-700 group-hover:text-white" size={28} /> : <Camera className="text-red-700 group-hover:text-white" size={28} />}
+                        <button 
+                            onClick={() => {
+                                if (isAiConfigured) batchFileRef.current?.click();
+                                else handleActivateAI();
+                            }} 
+                            className={`p-6 bg-white dark:bg-slate-800 rounded-xl border flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group ${isAiConfigured ? 'border-slate-200 dark:border-slate-700 hover:border-red-400 dark:hover:border-red-700' : 'border-red-200 bg-red-50/10'}`}
+                        >
+                           <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${isAiConfigured ? 'bg-red-100 dark:bg-red-900/30 group-hover:bg-red-600' : 'bg-red-500 animate-pulse'}`}>
+                                {isScanningBatch ? <Loader2 className="animate-spin text-white" size={28} /> : (isAiConfigured ? <Camera className="text-red-700 group-hover:text-white" size={28} /> : <Zap className="text-white" size={28} />)}
                            </div>
-                           <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Escanear</span>
+                           <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">{isAiConfigured ? 'Escanear' : 'Activar IA'}</span>
                         </button>
                     </div>
 
                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={batchFileRef} onChange={handleBatchFileChange}/>
 
-                    {/* SECCIÓN ÚLTIMA ACTIVIDAD (BAJO BOTONES) */}
                     <div className="w-full px-4 mb-8">
                         <div className="flex items-center gap-2 mb-4 px-1">
                             <History className="text-slate-500" size={20} />
-                            <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Última Actividad</h2>
+                            <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Actividad Reciente</h2>
                         </div>
                         <div className="space-y-4">
-                            {recentActivity.length > 0 ? (
-                                recentActivity.map(item => (
-                                    <RecordCard 
-                                      key={item.id} 
-                                      item={item} 
-                                      onEdit={handleEdit} 
-                                      onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(10); }} 
-                                      formatDate={formatDate} 
-                                    />
-                                ))
-                            ) : (
-                                <div className="text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700">
-                                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Sin actividad reciente</p>
-                                </div>
-                            )}
+                            {recentActivity.map(item => (
+                                <RecordCard 
+                                  key={item.id} 
+                                  item={item} 
+                                  onEdit={handleEdit} 
+                                  onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} 
+                                  formatDate={formatDate} 
+                                />
+                            ))}
                         </div>
                     </div>
                 </div>
               ) : (
-                /* RESULTADOS DE BÚSQUEDA */
                 <div className="space-y-5 animate-in fade-in max-w-2xl mx-auto">
-                  <div className="flex items-center justify-between px-1 mb-2">
-                    <h2 className="text-xl font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">
-                        {showAllRecords ? 'Inventario Completo' : `Resultados (${filteredData.length})`}
-                    </h2>
-                    {batchSearchResults && (
-                        <span className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 px-3 py-1 rounded-full font-black uppercase tracking-widest border border-blue-200 dark:border-blue-800">OCR Activo</span>
-                    )}
-                  </div>
                   {currentRecords.map((item) => (
-                    <RecordCard key={item.id} item={item} onEdit={handleEdit} onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(10); }} formatDate={formatDate} />
+                    <RecordCard key={item.id} item={item} onEdit={handleEdit} onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} formatDate={formatDate} />
                   ))}
-                  {filteredData.length === 0 && (
-                      <div className="text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 shadow-sm">
-                          <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No hay coincidencias...</p>
-                      </div>
-                  )}
                   {totalPages > 1 && (
                     <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 mt-6 shadow-sm">
-                      <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl disabled:opacity-20 transition-all active:scale-90 border border-slate-100 dark:border-slate-800"><ChevronLeft size={24} className="text-slate-900 dark:text-white" /></button>
-                      <span className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tighter">Página {currentPage} / {totalPages}</span>
-                      <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl disabled:opacity-20 transition-all active:scale-90 border border-slate-100 dark:border-slate-800"><ChevronRight size={24} className="text-slate-900 dark:text-white" /></button>
+                      <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl disabled:opacity-20 transition-all active:scale-90"><ChevronLeft size={24} /></button>
+                      <span className="text-sm font-black uppercase">Página {currentPage} / {totalPages}</span>
+                      <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl disabled:opacity-20 transition-all active:scale-90"><ChevronRight size={24} /></button>
                     </div>
                   )}
                 </div>
@@ -390,7 +397,7 @@ export default function App() {
         </main>
 
         {toast && (
-            <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 z-[100] ${toast.type === 'error' ? 'bg-red-600' : 'bg-slate-900'} text-white animate-in slide-in-from-bottom duration-300 border border-white/10`}>
+            <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 z-[100] ${toast.type === 'error' ? 'bg-red-600' : 'bg-slate-900'} text-white animate-in slide-in-from-bottom border border-white/10`}>
                 <span className="font-black text-sm uppercase tracking-widest">{toast.message}</span>
             </div>
         )}
@@ -398,16 +405,33 @@ export default function App() {
         {recordToDelete && (
              <div className="fixed inset-0 bg-slate-950/80 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
                  <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-700">
-                     <h3 className="text-xl font-black mb-3 dark:text-white text-center uppercase tracking-tight text-slate-900">¿Confirmar Borrado?</h3>
-                     <p className="text-sm font-bold text-slate-500 dark:text-slate-400 text-center mb-8">Vas a eliminar el equipo:<br/><span className="text-red-600 font-mono text-lg">{recordToDelete.deviceCode || recordToDelete.nes}</span></p>
+                     <h3 className="text-xl font-black mb-3 text-center uppercase tracking-tight">¿Borrar Registro?</h3>
+                     <p className="text-sm font-bold text-slate-500 text-center mb-8">Vas a eliminar el equipo:<br/><span className="text-red-600 font-mono text-lg">{recordToDelete.deviceCode || recordToDelete.nes}</span></p>
                      <div className="flex gap-4">
-                         <button onClick={() => setRecordToDelete(null)} className="flex-1 py-4 font-bold border border-slate-300 dark:border-slate-600 rounded-xl dark:text-white text-slate-800 active:scale-95 transition-all">No, volver</button>
-                         <button onClick={confirmDelete} disabled={deleteCountdown > 0} className="flex-1 py-4 bg-red-600 text-white rounded-xl font-black active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-red-500/20">
-                             {deleteCountdown > 0 ? `ESPERA (${deleteCountdown})` : 'SÍ, BORRAR'}
+                         <button onClick={() => setRecordToDelete(null)} className="flex-1 py-4 font-bold border rounded-xl active:scale-95 transition-all">Cerrar</button>
+                         <button onClick={confirmDelete} disabled={deleteCountdown > 0} className="flex-1 py-4 bg-red-600 text-white rounded-xl font-black active:scale-95 transition-all disabled:opacity-50">
+                             {deleteCountdown > 0 ? `ESPERA (${deleteCountdown})` : 'ELIMINAR'}
                          </button>
                      </div>
                  </div>
              </div>
+        )}
+
+        {showPinInput && (
+            <div className="fixed inset-0 bg-black/60 z-[120] flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-2xl">
+                    <h3 className="font-bold mb-4 dark:text-white text-slate-900">PIN Administrador</h3>
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        if (pinInputValue === '8386') { setDevMode(true); setShowPinInput(false); setPinInputValue(''); showToast('Modo Admin activado'); } 
+                        else { showToast('PIN Incorrecto', 'error'); setPinInputValue(''); }
+                    }} className="flex gap-2">
+                        <input type="password" value={pinInputValue} onChange={(e) => setPinInputValue(e.target.value)} className="p-2 border rounded dark:bg-slate-700 dark:text-white text-slate-950" autoFocus />
+                        <button type="submit" className="p-2 bg-red-600 text-white rounded"><Check/></button>
+                        <button type="button" onClick={() => setShowPinInput(false)} className="p-2 bg-gray-200 rounded dark:bg-slate-600"><X/></button>
+                    </form>
+                </div>
+            </div>
         )}
       </div>
     </div>

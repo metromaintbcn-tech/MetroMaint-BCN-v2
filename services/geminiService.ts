@@ -3,9 +3,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
 // --- CONFIGURACIÓN DE USO ---
-const DAILY_LIMIT = 50; // Aumentado para evitar bloqueos innecesarios
+const DAILY_LIMIT = 50; 
 const RESET_HOUR_SPAIN = 9;
 const SPAIN_TZ = "Europe/Madrid";
+
+// Helper para obtener la clave de forma segura
+const getApiKey = () => {
+  try {
+    // @ts-ignore
+    return process.env.API_KEY || "";
+  } catch {
+    return "";
+  }
+};
 
 const getUsageData = () => {
   const stored = localStorage.getItem('ai_usage_stats');
@@ -43,10 +53,20 @@ const trackUsage = () => {
 };
 
 export const GeminiService = {
-  checkConnection: (): boolean => {
-      // Verificación dinámica de la existencia de la clave
-      const key = process.env.API_KEY;
-      return !!key && key.length > 10;
+  checkConnection: async (): Promise<boolean> => {
+      const key = getApiKey();
+      if (key && key.length > 10) return true;
+      
+      try {
+        // @ts-ignore
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          // @ts-ignore
+          return await window.aistudio.hasSelectedApiKey();
+        }
+      } catch (e) {
+        console.warn("AI Status Check Error:", e);
+      }
+      return false;
   },
 
   getUsage: () => {
@@ -60,8 +80,12 @@ export const GeminiService = {
           return "🚫 **LÍMITE DIARIO ALCANZADO**\n\nEl contador se reiniciará mañana a las 9:00 AM.";
       }
 
-      // Inicialización directa según especificaciones
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        throw new Error("Clave de API no disponible. Por favor, activa la IA desde el menú.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const LIMIT = 3000;
       const cleanRecords = records.slice(0, LIMIT).map(r => ({
@@ -87,7 +111,10 @@ export const GeminiService = {
       return response.text || "No he podido generar una respuesta clara.";
     } catch (error: any) {
       console.error("Gemini Assistant Error:", error);
-      return `⚠️ Error de conexión: ${error.message || 'La IA no responde'}.`;
+      if (error.message?.includes("API Key") || error.message?.includes("must be set")) {
+        return "⚠️ **ERROR DE CLAVE**: No se ha detectado una clave de API válida. Pulsa 'Activar IA' en el menú lateral.";
+      }
+      return `⚠️ Error de conexión: ${error.message || 'Fallo al procesar la solicitud'}.`;
     }
   },
 
@@ -98,18 +125,19 @@ export const GeminiService = {
           throw new Error("Límite diario de escaneos alcanzado.");
       }
 
-      // Inicialización directa
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        throw new Error("Clave de API no disponible.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Analiza esta imagen de mantenimiento. Extrae todos los códigos que parezcan:
-                - NES (ejemplos: NES0023, 023PE, 150FS)
-                - Código Equipo (formato XX 00-00-00, ejemplo: VE 09-01-05, PA 01-12-30)
-                Devuelve la lista como un array JSON de strings.` }
+                { text: `Extrae todos los códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05) de esta imagen. Devuelve solo un array JSON de strings.` }
             ]
         },
         config: {
@@ -129,7 +157,10 @@ export const GeminiService = {
       return Array.isArray(result) ? result : [];
     } catch (error: any) {
         console.error("Gemini OCR Error:", error);
-        throw new Error(`Fallo en el escáner: ${error.message}`);
+        if (error.message?.includes("API Key") || error.message?.includes("must be set")) {
+          throw new Error("Clave de IA no configurada. Actívala en el menú lateral.");
+        }
+        throw new Error(error.message || "Fallo en el escáner.");
     }
   }
 };
