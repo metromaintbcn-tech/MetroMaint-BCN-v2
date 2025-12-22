@@ -1,20 +1,20 @@
-# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.5
+# PUNTO DE RESTAURACIÓN - VERSIÓN ESTABLE v1.4.6
 
 **Fecha:** Actualidad
 **Estado:** Estable / Producción
 **Descripción:** 
-Mejora de accesibilidad visual centrada en el contraste del modo claro.
+Corrección técnica de los servicios de IA (Escáner y Asistente).
 
-## 🚀 Mejoras Visuales (v1.4.5)
-1. **Contraste Aumentado:** Sustitución de grises claros (gray-400/500) por Slate-600/700 en etiquetas y metadatos.
-2. **Negros Puros en Inputs:** El texto de búsqueda y campos de formulario ahora usa Slate-950 para máxima visibilidad en exteriores.
-3. **Consistencia en Tarjetas:** Los detalles técnicos de las bombas y ventilaciones ahora resaltan más sobre el fondo claro.
+## 🚀 Mejoras Técnicas (v1.4.6)
+1. **IA Fix:** Inicialización de GoogleGenAI movida al interior de los métodos para asegurar captura de API_KEY.
+2. **OCR JSON Schema:** Implementado `responseSchema` para el escáner, garantizando que los resultados sean siempre un array válido.
+3. **Limpieza de Configuración:** Eliminado el mapeo manual de variables de entorno en Vite que causaba conflictos.
+4. **Resiliencia:** Mejora en el manejo de errores de red y cuotas de API.
 
 ## ✅ Características Validadas
-- **Visualización L9:** Borde naranja luminoso y campo Localización funcional.
-- **Doble Grosor:** Borde lateral de tarjetas de 8px.
-- **Buscador Unificado:** Foco persistente y sin pérdida de cursor.
-- **Sincronización:** Firebase Firestore configurado y operativo.
+- **Escáner:** Extracción de códigos NES y de Equipo funcional.
+- **Asistente:** Análisis de inventario y detección de anomalías operativo.
+- **Buscador:** Foco persistente y contraste alto.
 
 ---
-**AVISO:** Esta versión es la recomendada para uso en exteriores con luz solar directa.
+**AVISO:** Esta versión restablece la funcionalidad inteligente de la aplicación.
