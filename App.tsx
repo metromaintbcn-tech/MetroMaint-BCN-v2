@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { MaintenanceRecord, ViewState, DeviceType, EquipmentStatus } from './types';
 import { StorageService } from './services/storageService';
@@ -229,7 +228,7 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.9 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.0 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>

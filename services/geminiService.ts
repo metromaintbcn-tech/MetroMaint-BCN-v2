@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
@@ -43,11 +42,6 @@ const trackUsage = () => {
 };
 
 export const GeminiService = {
-  checkConnection: async (): Promise<boolean> => {
-      // Verificación simple de presencia de clave
-      return !!process.env.API_KEY;
-  },
-
   getUsage: () => {
     return getUsageData();
   },
@@ -59,6 +53,7 @@ export const GeminiService = {
           return "🚫 **LÍMITE DIARIO ALCANZADO**\n\nEl contador se reiniciará mañana a las 9:00 AM.";
       }
 
+      // La clave se obtiene exclusivamente de process.env.API_KEY de forma automática
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const LIMIT = 3000;
@@ -85,7 +80,7 @@ export const GeminiService = {
       return response.text || "No he podido generar una respuesta clara.";
     } catch (error: any) {
       console.error("Gemini Assistant Error:", error);
-      return `⚠️ Error de conexión: ${error.message || 'La IA no responde'}.`;
+      return `⚠️ Error de conexión: ${error.message || 'La IA no responde. Verifica la clave en el panel de control.'}.`;
     }
   },
 
@@ -96,6 +91,7 @@ export const GeminiService = {
           throw new Error("Límite diario de escaneos alcanzado.");
       }
 
+      // La clave se obtiene exclusivamente de process.env.API_KEY de forma automática
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const response = await ai.models.generateContent({
@@ -103,7 +99,7 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Extrae códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05). Devuelve un array JSON de strings.` }
+                { text: `Extrae todos los códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05) de esta imagen. Devuelve solo un array JSON de strings.` }
             ]
         },
         config: {
@@ -123,7 +119,7 @@ export const GeminiService = {
       return Array.isArray(result) ? result : [];
     } catch (error: any) {
         console.error("Gemini OCR Error:", error);
-        throw new Error(error.message || "Fallo en el escáner.");
+        throw new Error(error.message || "Fallo en el escáner. Verifica la conexión.");
     }
   }
 };
