@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
@@ -43,20 +44,8 @@ const trackUsage = () => {
 
 export const GeminiService = {
   checkConnection: async (): Promise<boolean> => {
-      // Verificación directa de la clave inyectada
-      const key = process.env.API_KEY;
-      if (key && key.length > 10) return true;
-      
-      try {
-        // @ts-ignore
-        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-          // @ts-ignore
-          return await window.aistudio.hasSelectedApiKey();
-        }
-      } catch (e) {
-        console.warn("Error verificando conexión IA:", e);
-      }
-      return false;
+      // Verificación simple de presencia de clave
+      return !!process.env.API_KEY;
   },
 
   getUsage: () => {
@@ -70,7 +59,6 @@ export const GeminiService = {
           return "🚫 **LÍMITE DIARIO ALCANZADO**\n\nEl contador se reiniciará mañana a las 9:00 AM.";
       }
 
-      // Inicialización estrictamente según reglas
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const LIMIT = 3000;
@@ -97,9 +85,6 @@ export const GeminiService = {
       return response.text || "No he podido generar una respuesta clara.";
     } catch (error: any) {
       console.error("Gemini Assistant Error:", error);
-      if (error.message?.includes("API Key") || error.message?.includes("must be set")) {
-        return "⚠️ **ERROR DE CLAVE**: No se ha detectado una clave de API válida. Pulsa 'Activar IA' en el menú lateral.";
-      }
       return `⚠️ Error de conexión: ${error.message || 'La IA no responde'}.`;
     }
   },
@@ -111,7 +96,6 @@ export const GeminiService = {
           throw new Error("Límite diario de escaneos alcanzado.");
       }
 
-      // Inicialización estrictamente según reglas
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const response = await ai.models.generateContent({
@@ -119,7 +103,7 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Extrae todos los códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05) de esta imagen. Devuelve solo un array JSON de strings.` }
+                { text: `Extrae códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05). Devuelve un array JSON de strings.` }
             ]
         },
         config: {
@@ -139,9 +123,6 @@ export const GeminiService = {
       return Array.isArray(result) ? result : [];
     } catch (error: any) {
         console.error("Gemini OCR Error:", error);
-        if (error.message?.includes("API Key") || error.message?.includes("must be set")) {
-          throw new Error("Clave de IA no configurada. Actívala en el menú lateral.");
-        }
         throw new Error(error.message || "Fallo en el escáner.");
     }
   }

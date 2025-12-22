@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { MaintenanceRecord, ViewState, DeviceType, EquipmentStatus } from './types';
 import { StorageService } from './services/storageService';
@@ -38,35 +39,11 @@ export default function App() {
   const [devMode, setDevMode] = useState(false);
   const [showPinInput, setShowPinInput] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
-  const [isAiConfigured, setIsAiConfigured] = useState(false);
 
   useEffect(() => {
     StorageService.seedData();
     loadData();
-    updateAIStatus();
   }, []);
-
-  const updateAIStatus = async () => {
-    const isConnected = await GeminiService.checkConnection();
-    setIsAiConfigured(isConnected);
-  };
-
-  const handleActivateAI = async () => {
-    try {
-      // @ts-ignore
-      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        setIsAiConfigured(true);
-        showToast("Activación de IA iniciada", "info");
-        setTimeout(updateAIStatus, 2000);
-      } else {
-        showToast("Entorno no compatible con selección automática", "error");
-      }
-    } catch (e) {
-      showToast("Fallo al abrir selector de clave", "error");
-    }
-  };
 
   useEffect(() => {
     if (toast) {
@@ -103,14 +80,14 @@ export default function App() {
       setData(await StorageService.save(record));
       if (returnToAI) { setView('AI_ASSISTANT'); setReturnToAI(false); } else { setView('LIST'); }
       setEditingRecord(null);
-      showToast('Datos guardados correctamente en la nube');
+      showToast('Datos guardados correctamente');
     } catch (e) { showToast('Error al guardar. Comprueba tu conexión.', 'error'); }
   };
 
   const confirmDelete = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
-    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado correctamente', 'info'); } 
-    catch (error) { showToast('Error al eliminar el registro', 'error'); } 
+    try { setData(await StorageService.delete(recordToDelete.id)); showToast('Registro eliminado', 'info'); } 
+    catch (error) { showToast('Error al eliminar', 'error'); } 
     finally { setRecordToDelete(null); }
   };
 
@@ -131,9 +108,9 @@ export default function App() {
           const canvas = document.createElement('canvas');
           canvas.width = width; canvas.height = height;
           const ctx = canvas.getContext('2d');
-          if (!ctx) { reject(new Error("No se pudo crear el contexto del canvas")); return; }
+          if (!ctx) { reject(new Error("Error de canvas")); return; }
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+          resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
         };
       };
     });
@@ -142,26 +119,19 @@ export default function App() {
   const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
 
-    if (!isAiConfigured) {
-      showToast("Activa la IA primero para usar el escáner", "error");
-      handleActivateAI();
-      return;
-    }
-
-    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Analizando...', 'info');
+    setIsScanningBatch(true); setBatchSearchResults(null); showToast('Escaneando equipo...', 'info');
     try {
         const base64Data = await compressImage(file);
         const codes = await GeminiService.extractCodesFromDocument(base64Data);
         if (codes && codes.length > 0) { 
           setBatchSearchResults(codes); 
           setSearchTerm(''); 
-          showToast(`¡Éxito! Encontrados ${codes.length} equipos.`, 'success'); 
+          showToast(`Encontrados ${codes.length} equipos`, 'success'); 
         } else { 
-          showToast('No se encontraron códigos válidos.', 'error'); 
+          showToast('No se detectaron códigos claros', 'error'); 
         }
     } catch (error: any) { 
-        showToast(`⚠️ ${error.message || 'Error en el escáner'}`, 'error');
-        updateAIStatus();
+        showToast(`⚠️ Error en escáner: ${error.message || 'Fallo de conexión'}`, 'error');
     } finally { setIsScanningBatch(false); if (batchFileRef.current) batchFileRef.current.value = ''; }
   };
 
@@ -170,32 +140,30 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = async (evt) => {
         try {
-            const text = evt.target?.result as string; if (!text) return;
+            const text = evt.target?.result as string;
             const lines = text.split(/\r\n|\n/); const newRecords: MaintenanceRecord[] = [];
             const separator = lines[0].includes(';') ? ';' : ',';
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].trim().split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
                 if (cols.length >= 2) {
-                    const id = crypto.randomUUID();
-                    newRecords.push({ id, station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
+                    newRecords.push({ id: crypto.randomUUID(), station: cols[0], deviceCode: cols[1], nes: cols[2] || 'S/N', deviceType: DeviceType.OTHER, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() });
                 }
             }
-            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos.`, 'success'); }
-        } catch (err) { showToast('Error crítico al leer CSV.', 'error'); }
+            if (newRecords.length > 0) { await StorageService.importData(newRecords); setData(await StorageService.getAll()); showToast(`Importados ${newRecords.length} equipos`, 'success'); }
+        } catch (err) { showToast('Error al importar CSV', 'error'); }
     };
     reader.readAsText(file);
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Estación', 'NES', 'Código Equipo', 'Tipo', 'Estado', 'Fecha ISO'];
-    const rows = data.map(item => [item.id, item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
+    const headers = ['Estación', 'NES', 'Código', 'Tipo', 'Estado', 'Fecha'];
+    const rows = data.map(item => [item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', url); link.setAttribute('download', `metro_informe.csv`);
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    showToast('Informe CSV descargado', 'success');
+    link.href = URL.createObjectURL(blob);
+    link.download = `metro_bcn_informe.csv`;
+    link.click();
   };
 
   const filteredData = data.filter(item => {
@@ -211,10 +179,9 @@ export default function App() {
         });
     }
     if (!matchesBatch) return false;
-    const stationMatch = (item.station || '').toLowerCase().includes(searchLower);
-    const nesMatch = (item.nes || '').toLowerCase().includes(searchLower);
-    const codeMatch = (item.deviceCode || '').toLowerCase().includes(searchLower);
-    return stationMatch || nesMatch || codeMatch;
+    return (item.station || '').toLowerCase().includes(searchLower) || 
+           (item.nes || '').toLowerCase().includes(searchLower) || 
+           (item.deviceCode || '').toLowerCase().includes(searchLower);
   }).sort((a, b) => (a.deviceCode || '').localeCompare(b.deviceCode || '', undefined, { numeric: true }));
 
   const activeIncidents = data.filter(item => item.status === EquipmentStatus.INCIDENT);
@@ -255,13 +222,6 @@ export default function App() {
                 <div className={`w-8 h-4 rounded-full relative ${darkMode ? 'bg-blue-600' : 'bg-slate-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
               </button>
               
-              {!isAiConfigured && (
-                 <button onClick={handleActivateAI} className="w-full flex items-center gap-3 p-3 rounded-lg bg-red-600 text-white font-bold animate-pulse">
-                    <Sparkles size={18}/>
-                    <span>Activar Funciones IA</span>
-                 </button>
-              )}
-
               {devMode && (
                 <div className="pt-4 border-t border-slate-700 grid grid-cols-2 gap-2">
                   <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
@@ -269,25 +229,12 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.8 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.4.9 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
 
         <main className="flex-1 container mx-auto px-4 py-6">
-          {view === 'LIST' && !isAiConfigured && (
-              <div className="mb-6 p-4 bg-red-100 border border-red-200 rounded-2xl flex items-center justify-between shadow-sm animate-in slide-in-from-top duration-300">
-                  <div className="flex items-center gap-3 text-red-800">
-                      <ShieldAlert size={24} className="shrink-0" />
-                      <div>
-                          <p className="font-black text-sm uppercase leading-none mb-1">IA Desactivada</p>
-                          <p className="text-[10px] font-bold opacity-80">Activa la IA para usar el Escáner y el Asistente.</p>
-                      </div>
-                  </div>
-                  <button onClick={handleActivateAI} className="px-4 py-2 bg-red-600 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-red-500/20 active:scale-95 transition-transform">Activar</button>
-              </div>
-          )}
-
           {view === 'LIST' && !isSearchActive && activeIncidents.length > 0 && (
             <div className="mb-8 animate-in slide-in-from-top duration-500">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -347,16 +294,13 @@ export default function App() {
                            <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Nuevo</span>
                         </button>
                         <button 
-                            onClick={() => {
-                                if (isAiConfigured) batchFileRef.current?.click();
-                                else handleActivateAI();
-                            }} 
-                            className={`p-6 bg-white dark:bg-slate-800 rounded-xl border flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group ${isAiConfigured ? 'border-slate-200 dark:border-slate-700 hover:border-red-400 dark:hover:border-red-700' : 'border-red-200 bg-red-50/10'}`}
+                            onClick={() => batchFileRef.current?.click()} 
+                            className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group hover:border-red-400 dark:hover:border-red-700"
                         >
-                           <div className={`h-14 w-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${isAiConfigured ? 'bg-red-100 dark:bg-red-900/30 group-hover:bg-red-600' : 'bg-red-500 animate-pulse'}`}>
-                                {isScanningBatch ? <Loader2 className="animate-spin text-white" size={28} /> : (isAiConfigured ? <Camera className="text-red-700 group-hover:text-white" size={28} /> : <Zap className="text-white" size={28} />)}
+                           <div className="h-14 w-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-600 transition-colors">
+                                {isScanningBatch ? <Loader2 className="animate-spin text-white" size={28} /> : <Camera className="text-red-700 group-hover:text-white" size={28} />}
                            </div>
-                           <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">{isAiConfigured ? 'Escanear' : 'Activar IA'}</span>
+                           <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Escanear</span>
                         </button>
                     </div>
 
