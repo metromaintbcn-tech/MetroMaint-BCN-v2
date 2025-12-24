@@ -14,28 +14,27 @@ import {
 
 const COLLECTION_NAME = 'maintenance_records';
 const CACHE_KEY = 'metro_bcn_data_cache';
+// Caché agresiva: 24 horas para minimizar lecturas en el plan gratuito
+const CACHE_DURATION = 24 * 60 * 60 * 1000; 
 
-// Limpieza de datos para Firebase
 const sanitizeData = (data: any) => {
   return JSON.parse(JSON.stringify(data));
 };
 
 export const StorageService = {
-  // OBTENER TODOS LOS REGISTROS (Con Caché para ahorrar cuota)
   getAll: async (forceRefresh = false): Promise<MaintenanceRecord[]> => {
     try {
-      // Intentar cargar de localStorage primero para velocidad e offline
-      if (!forceRefresh) {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          // Si la caché tiene menos de 5 minutos, la usamos
-          if (Date.now() - parsed.timestamp < 300000) {
-            return parsed.data;
-          }
+      // Intentar usar caché local persistente primero
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached && !forceRefresh) {
+        const parsed = JSON.parse(cached);
+        // Si los datos tienen menos de 24 horas, no consultamos Firebase
+        if (Date.now() - parsed.timestamp < CACHE_DURATION) {
+          return parsed.data;
         }
       }
 
+      // Solo si no hay caché o es muy vieja, leemos de Firebase
       const recordsRef = collection(db, COLLECTION_NAME);
       const q = query(recordsRef, orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
@@ -45,7 +44,6 @@ export const StorageService = {
         data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
       });
       
-      // Guardar en caché local
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp: Date.now(),
         data: data
@@ -59,14 +57,12 @@ export const StorageService = {
     }
   },
 
-  // GUARDAR SIN RE-DESCARGAR TODO (Ahorro de cuota)
   save: async (record: MaintenanceRecord, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
     try {
       const docRef = doc(db, COLLECTION_NAME, record.id);
       const cleanRecord = sanitizeData(record);
       await setDoc(docRef, cleanRecord, { merge: true });
       
-      // Actualizamos la lista local manualmente en lugar de llamar a getAll()
       const index = currentData.findIndex(r => r.id === record.id);
       let newData;
       if (index > -1) {
@@ -76,7 +72,6 @@ export const StorageService = {
         newData = [record, ...currentData];
       }
 
-      // Actualizar caché
       localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
       return newData;
     } catch (error) {
@@ -85,12 +80,10 @@ export const StorageService = {
     }
   },
 
-  // ELIMINAR SIN RE-DESCARGAR TODO
   delete: async (id: string, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, id));
       const newData = currentData.filter(r => r.id !== id);
-      
       localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
       return newData;
     } catch (error) {
@@ -107,7 +100,7 @@ export const StorageService = {
         batch.set(docRef, sanitizeData(item), { merge: true });
       });
       await batch.commit();
-      localStorage.removeItem(CACHE_KEY); // Forzamos refresco en el próximo getAll
+      localStorage.removeItem(CACHE_KEY);
     } catch (error) {
       console.error("Error Import:", error);
       throw error;
@@ -115,9 +108,8 @@ export const StorageService = {
   },
 
   seedData: async () => {
-    // Solo ejecutamos seed si no hay caché y no hay internet o es la primera vez
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) return;
+    // Evitar lectura de comprobación si ya tenemos datos locales
+    if (localStorage.getItem(CACHE_KEY)) return;
     
     try {
       const recordsRef = collection(db, COLLECTION_NAME);

@@ -1,8 +1,0 @@
-{
-  "name": "MetroMaint BCN v1 Firebase",
-  "description": "Aplicación de gestión de mantenimiento para operarios de Metro Barcelona. Registro de datos de estaciones, ventilación y pozos.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}

@@ -4,15 +4,12 @@ import { MaintenanceRecord, ViewState, DeviceType, EquipmentStatus } from './typ
 import { StorageService } from './services/storageService';
 import { GeminiService } from './services/geminiService';
 import { RecordForm } from './components/RecordForm';
-import { Dashboard } from './components/Dashboard';
-import { AIAssistant } from './components/AIAssistant';
 import { RecordCard } from './components/RecordCard';
 import { 
-  Plus, Search, Trash2, LayoutGrid, List as ListIcon, Bot, Menu, X, Moon, Sun,
-  StickyNote, AlertTriangle, CheckCircle2, Database, ChevronLeft, ChevronRight,
-  ScanLine, Loader2, UploadCloud, Download, Camera, History, Lock, Unlock, Zap,
-  Settings, Terminal, Check, Smartphone, FileSpreadsheet, Wifi, WifiOff, Clock,
-  ArrowRight, ShieldAlert, Sparkles, RotateCcw
+  Plus, Search, Menu, X, Moon, Sun,
+  AlertTriangle, History, Lock, Loader2, 
+  Camera, Check, FileSpreadsheet, UploadCloud,
+  ChevronLeft, ChevronRight, Clock, RotateCcw, List as ListIcon
 } from 'lucide-react';
 
 export default function App() {
@@ -23,8 +20,6 @@ export default function App() {
   const [showAllRecords, setShowAllRecords] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [returnToAI, setReturnToAI] = useState(false);
-  const [aiPersistence, setAiPersistence] = useState<{query: string, response: string | null}>({ query: '', response: null });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
@@ -74,18 +69,17 @@ export default function App() {
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => setToast({ message, type });
   
   const loadInitialData = async () => {
+    // Usamos caché local primero sin forzar refresco de red (minimiza lecturas)
     await StorageService.seedData();
-    const records = await StorageService.getAll();
+    const records = await StorageService.getAll(false);
     setData(records);
   };
 
   const handleSave = async (record: MaintenanceRecord) => {
     try {
-      // Pasamos 'data' para que StorageService actualice localmente sin re-descargar todo
       const updatedData = await StorageService.save(record, data);
       setData(updatedData);
-      
-      if (returnToAI) { setView('AI_ASSISTANT'); setReturnToAI(false); } else { setView('LIST'); }
+      setView('LIST');
       setEditingRecord(null);
       showToast('Datos guardados correctamente');
     } catch (e) { showToast('Error al guardar. Comprueba tu conexión.', 'error'); }
@@ -102,8 +96,7 @@ export default function App() {
     finally { setRecordToDelete(null); }
   };
 
-  const handleEdit = (record: MaintenanceRecord) => { setEditingRecord(record); setView('EDIT'); setReturnToAI(false); };
-  const handleAIEdit = (record: MaintenanceRecord) => { setEditingRecord(record); setReturnToAI(true); setView('EDIT'); };
+  const handleEdit = (record: MaintenanceRecord) => { setEditingRecord(record); setView('EDIT'); };
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -129,16 +122,14 @@ export default function App() {
 
   const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-
     setIsScanningBatch(true); setBatchSearchResults(null); showToast('Analizando placa...', 'info');
     try {
         const base64Data = await compressImage(file);
         const codes = await GeminiService.extractCodesFromDocument(base64Data);
         if (codes && codes.length > 0) { 
-          // COMPORTAMIENTO DE BÚSQUEDA:
           setBatchSearchResults(codes); 
           setSearchTerm(''); 
-          setView('LIST'); // Forzamos vista de lista para ver resultados
+          setView('LIST'); 
           showToast(`Encontrados ${codes.length} equipos`, 'success'); 
         } else { 
           showToast('No se detectaron códigos claros', 'error'); 
@@ -187,7 +178,6 @@ export default function App() {
   const filteredData = data.filter(item => {
     const searchLower = searchTerm.toLowerCase();
     if (showAllRecords && searchTerm === '') return true;
-    
     let matchesBatch = true;
     if (batchSearchResults && batchSearchResults.length > 0) {
         const recordNes = (item.nes || '').toUpperCase().replace(/\s/g, '');
@@ -198,11 +188,8 @@ export default function App() {
             return (recordNes.length > 0 && recordNes.includes(s)) || (recordCode.length > 0 && recordCode.includes(s));
         });
     }
-    
     if (!matchesBatch) return false;
-    
     if (searchTerm === '') return matchesBatch;
-
     return (item.station || '').toLowerCase().includes(searchLower) || 
            (item.nes || '').toLowerCase().includes(searchLower) || 
            (item.deviceCode || '').toLowerCase().includes(searchLower);
@@ -232,8 +219,6 @@ export default function App() {
             </div>
             <nav className="flex items-center space-x-1 md:space-x-2">
               <button onClick={() => setView('LIST')} className={`p-2 rounded-md ${view === 'LIST' ? 'bg-red-700' : 'text-gray-400 hover:bg-slate-800'}`}><ListIcon size={20}/></button>
-              <button onClick={() => setView('DASHBOARD')} className={`p-2 rounded-md ${view === 'DASHBOARD' ? 'bg-red-700' : 'text-gray-400 hover:bg-slate-800'}`}><LayoutGrid size={20}/></button>
-              <button onClick={() => setView('AI_ASSISTANT')} className={`p-2 rounded-md ${view === 'AI_ASSISTANT' ? 'bg-red-700' : 'text-gray-400 hover:bg-slate-800'}`}><Bot size={20}/></button>
             </nav>
             <button ref={menuBtnRef} className="p-2 text-gray-300 hover:text-white rounded hover:bg-slate-800" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                 {mobileMenuOpen ? <X size={24}/> : <Menu size={24}/>}
@@ -245,10 +230,6 @@ export default function App() {
                 <div className="flex items-center gap-3">{darkMode ? <Moon size={18}/> : <Sun size={18}/>}<span>Modo {darkMode ? 'Oscuro' : 'Claro'}</span></div>
                 <div className={`w-8 h-4 rounded-full relative ${darkMode ? 'bg-blue-600' : 'bg-slate-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
               </button>
-              
-              <button onClick={() => { StorageService.getAll(true).then(setData); setMobileMenuOpen(false); showToast('Datos sincronizados'); }} className="w-full flex items-center gap-3 p-3 rounded-lg bg-slate-700/50 text-slate-200">
-                <RotateCcw size={18}/> <span>Refrescar de la Nube</span>
-              </button>
 
               {devMode && (
                 <div className="pt-4 border-t border-slate-700 grid grid-cols-2 gap-2">
@@ -257,7 +238,7 @@ export default function App() {
                   <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.1 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.4 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -269,20 +250,24 @@ export default function App() {
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="text-amber-600" size={20} />
                         <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Incidencias Activas</h2>
+                        <span className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full text-xs font-black border border-amber-200 dark:border-amber-800 ml-1">
+                            {activeIncidents.length}
+                        </span>
                     </div>
                 </div>
                 <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x">
                     {activeIncidents.map(incident => (
-                        <div 
-                          key={incident.id}
-                          onClick={() => handleEdit(incident)}
-                          className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-amber-500 shadow-md border-t border-r border-b border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors"
-                        >
+                        <div key={incident.id} onClick={() => handleEdit(incident)} className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-amber-500 shadow-md border-t border-r border-b border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                                 <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{incident.deviceCode}</span>
                                 <span className="text-[10px] text-slate-500 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter"><Clock size={10} /> {formatDate(incident.date).split(',')[0]}</span>
                             </div>
                             <h3 className="font-black text-slate-950 dark:text-white text-sm truncate mb-1 tracking-tight">{incident.station}</h3>
+                            {incident.notes && (
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400 italic line-clamp-1 border-t border-slate-100 dark:border-slate-700 pt-1 mt-1 opacity-80">
+                                    {incident.notes}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -301,12 +286,7 @@ export default function App() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                     {isSearchActive && (
-                        <button 
-                            onClick={() => { setSearchTerm(''); setBatchSearchResults(null); setShowAllRecords(false); }} 
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-600 transition-colors"
-                        >
-                            <X size={24} />
-                        </button>
+                        <button onClick={() => { setSearchTerm(''); setBatchSearchResults(null); setShowAllRecords(false); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-600 transition-colors"><X size={24} /></button>
                     )}
                 </div>
                 {batchSearchResults && (
@@ -327,19 +307,14 @@ export default function App() {
                            <div className="h-14 w-14 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors"><Plus className="text-blue-700 group-hover:text-white" size={28} /></div>
                            <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Nuevo</span>
                         </button>
-                        <button 
-                            onClick={() => batchFileRef.current?.click()} 
-                            className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group hover:border-red-400 dark:hover:border-red-700"
-                        >
+                        <button onClick={() => batchFileRef.current?.click()} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group hover:border-red-400 dark:hover:border-red-700">
                            <div className="h-14 w-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-600 transition-colors">
                                 {isScanningBatch ? <Loader2 className="animate-spin text-white" size={28} /> : <Camera className="text-red-700 group-hover:text-white" size={28} />}
                            </div>
                            <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Escanear</span>
                         </button>
                     </div>
-
                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={batchFileRef} onChange={handleBatchFileChange}/>
-
                     <div className="w-full px-4 mb-8">
                         <div className="flex items-center gap-2 mb-4 px-1">
                             <History className="text-slate-500" size={20} />
@@ -347,13 +322,7 @@ export default function App() {
                         </div>
                         <div className="space-y-4">
                             {recentActivity.map(item => (
-                                <RecordCard 
-                                  key={item.id} 
-                                  item={item} 
-                                  onEdit={handleEdit} 
-                                  onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} 
-                                  formatDate={formatDate} 
-                                />
+                                <RecordCard key={item.id} item={item} onEdit={handleEdit} onDelete={(r) => { setRecordToDelete(r); setDeleteCountdown(5); }} formatDate={formatDate} />
                             ))}
                         </div>
                     </div>
@@ -383,9 +352,7 @@ export default function App() {
           )}
 
           {view === 'ADD' && <RecordForm existingRecords={data} onSave={handleSave} onCancel={() => setView('LIST')} />}
-          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={data} onSave={handleSave} onCancel={() => { setEditingRecord(null); setView(returnToAI ? 'AI_ASSISTANT' : 'LIST'); }} />}
-          {view === 'DASHBOARD' && <Dashboard data={data} />}
-          {view === 'AI_ASSISTANT' && <AIAssistant data={data} onEditRecord={handleAIEdit} persistedState={aiPersistence} onPersistState={setAiPersistence} />}
+          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={data} onSave={handleSave} onCancel={() => { setEditingRecord(null); setView('LIST'); }} />}
         </main>
 
         {toast && (
@@ -396,7 +363,7 @@ export default function App() {
 
         {recordToDelete && (
              <div className="fixed inset-0 bg-slate-950/80 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
-                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-700">
+                 <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-700">
                      <h3 className="text-xl font-black mb-3 text-center uppercase tracking-tight">¿Borrar Registro?</h3>
                      <p className="text-sm font-bold text-slate-500 text-center mb-8">Vas a eliminar el equipo:<br/><span className="text-red-600 font-mono text-lg">{recordToDelete.deviceCode || recordToDelete.nes}</span></p>
                      <div className="flex gap-4">

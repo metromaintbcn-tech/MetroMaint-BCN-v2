@@ -63,13 +63,13 @@ export interface MaintenanceRecord {
   deviceType: DeviceType; // Dispositivo
   status: EquipmentStatus; // Estado del equipo
   readings: ConsumptionReadings; // Objeto con las lecturas específicas
-  location?: string; // Localización (Específico L9)
+  location?: string; // Localización
   date: string; // ISO Date
   notes?: string;
   lastModifiedBy?: string;
 }
 
-export type ViewState = 'LIST' | 'ADD' | 'EDIT' | 'DASHBOARD' | 'AI_ASSISTANT';
+export type ViewState = 'LIST' | 'ADD' | 'EDIT';
 
 export const METRO_COLORS = {
   primary: '#dc2626', // Red-600 (Metro Red-ish)
