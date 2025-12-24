@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { MaintenanceRecord } from "../types";
 
@@ -48,7 +49,6 @@ export const GeminiService = {
       const usage = getUsageData();
       if (usage.count >= DAILY_LIMIT) return "🚫 **LÍMITE ALCANZADO**\nReintento mañana 9:00 AM.";
 
-      // La clave ahora es inyectada automáticamente por el build (Vite)
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const cleanRecords = records.slice(0, 3000).map(r => ({
@@ -82,7 +82,16 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Extrae códigos NES (ej. 150FS) y de equipo (ej. VE 09-01-05). Devuelve solo array JSON de strings.` }
+                { text: `Actúa como un experto en mantenimiento de Metro. Analiza la imagen y extrae códigos de identificación de equipos. 
+                Formatos esperados:
+                1. Códigos NES: Deben empezar por NES seguido de números y el sufijo correspondiente (ej. NES004PE, NES150FS).
+                2. Códigos de Equipo (Matriz): Dos letras seguidas de números separados por guiones (ej. PE 01-13-01). 
+                
+                REGLA CRÍTICA DE NORMALIZACIÓN:
+                - Si los números en el código de equipo tienen un solo dígito, DEBES añadir un cero a la izquierda para que siempre tengan dos dígitos (ej. transforma 'PE 1-13-1' en 'PE 01-13-01').
+                - Asegúrate de que el código NES incluya el prefijo "NES".
+                
+                Devuelve solo un array JSON de strings con los códigos encontrados.` }
             ]
         },
         config: {

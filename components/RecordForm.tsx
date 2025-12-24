@@ -298,45 +298,45 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
       const suffix = groupNum === 1 ? '1' : '2';
       return (
           <div className="bg-gray-50 dark:bg-slate-900/50 p-3 rounded-lg border border-gray-100 dark:border-slate-700">
-              <h4 className="text-xs font-bold uppercase text-gray-500 mb-2 border-b border-gray-200 dark:border-slate-700 pb-1">{label}</h4>
+              <h4 className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-2 border-b border-gray-200 dark:border-slate-700 pb-1">{label}</h4>
               <div className="space-y-2">
                   <div>
-                      <label className="text-[10px] text-gray-400 block mb-0.5">Fusibles (A)</label>
+                      <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">Fusibles (A)</label>
                       <input 
                         type="number" inputMode="numeric" placeholder="A"
                         value={formData.readings?.[`fuses${suffix}` as keyof ConsumptionReadings] as number || ''} 
                         onChange={(e) => handleReadingsChange(`fuses${suffix}` as keyof ConsumptionReadings, e.target.value)} 
-                        className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded" 
+                        className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-100" 
                       />
                   </div>
                   {!hasVFD && (
                       <div>
-                          <label className="text-[10px] text-gray-400 block mb-0.5">Rango Térmico (A)</label>
+                          <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">Rango Térmico (A)</label>
                           <div className="flex gap-1">
                               <input 
                                 type="number" step="0.1" placeholder="Min"
                                 value={formData.readings?.[`thermalMin${suffix}` as keyof ConsumptionReadings] as number || ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMin${suffix}` as keyof ConsumptionReadings, e.target.value)} 
-                                className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center" 
+                                className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
                               <input 
                                 type="number" step="0.1" placeholder="Max"
                                 value={formData.readings?.[`thermalMax${suffix}` as keyof ConsumptionReadings] as number || ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMax${suffix}` as keyof ConsumptionReadings, e.target.value)} 
-                                className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center" 
+                                className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
                           </div>
                       </div>
                   )}
                   <div>
-                      <label className="text-[10px] text-gray-400 block mb-0.5">
+                      <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">
                           {hasVFD ? 'Frecuencia' : 'Regulado'} ({unitRegulated})
                       </label>
                       <input 
                         type="number" step="0.1" placeholder={unitRegulated}
                         value={formData.readings?.[`regulated${suffix}` as keyof ConsumptionReadings] as number || ''} 
                         onChange={(e) => handleReadingsChange(`regulated${suffix}` as keyof ConsumptionReadings, e.target.value)} 
-                        className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded font-semibold text-blue-600 dark:text-blue-400" 
+                        className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded font-bold text-blue-700 dark:text-blue-400" 
                       />
                   </div>
               </div>
