@@ -14,6 +14,7 @@ import {
 
 const COLLECTION_NAME = 'maintenance_records';
 const CACHE_KEY = 'metro_bcn_data_cache';
+const USAGE_KEY = 'metro_firebase_usage';
 // Caché agresiva: 24 horas para minimizar lecturas en el plan gratuito
 const CACHE_DURATION = 24 * 60 * 60 * 1000; 
 
@@ -21,20 +22,42 @@ const sanitizeData = (data: any) => {
   return JSON.parse(JSON.stringify(data));
 };
 
+const trackFirebaseUsage = (type: 'read' | 'write' | 'delete', count: number = 1) => {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const stored = localStorage.getItem(USAGE_KEY);
+  let stats = stored ? JSON.parse(stored) : { date: today, reads: 0, writes: 0, deletes: 0 };
+
+  if (stats.date !== today) {
+    stats = { date: today, reads: 0, writes: 0, deletes: 0 };
+  }
+
+  if (type === 'read') stats.reads += count;
+  if (type === 'write') stats.writes += count;
+  if (type === 'delete') stats.deletes += count;
+
+  localStorage.setItem(USAGE_KEY, JSON.stringify(stats));
+};
+
 export const StorageService = {
+  getUsageStats: () => {
+    const today = new Date().toISOString().split('T')[0];
+    const stored = localStorage.getItem(USAGE_KEY);
+    const stats = stored ? JSON.parse(stored) : { date: today, reads: 0, writes: 0, deletes: 0 };
+    if (stats.date !== today) return { date: today, reads: 0, writes: 0, deletes: 0 };
+    return stats;
+  },
+
   getAll: async (forceRefresh = false): Promise<MaintenanceRecord[]> => {
     try {
-      // Intentar usar caché local persistente primero
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached && !forceRefresh) {
         const parsed = JSON.parse(cached);
-        // Si los datos tienen menos de 24 horas, no consultamos Firebase
         if (Date.now() - parsed.timestamp < CACHE_DURATION) {
           return parsed.data;
         }
       }
 
-      // Solo si no hay caché o es muy vieja, leemos de Firebase
       const recordsRef = collection(db, COLLECTION_NAME);
       const q = query(recordsRef, orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
@@ -44,6 +67,9 @@ export const StorageService = {
         data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
       });
       
+      // Tracking: cada documento leído cuenta como una lectura en Firebase
+      trackFirebaseUsage('read', querySnapshot.size || 1);
+
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         timestamp: Date.now(),
         data: data
@@ -63,6 +89,8 @@ export const StorageService = {
       const cleanRecord = sanitizeData(record);
       await setDoc(docRef, cleanRecord, { merge: true });
       
+      trackFirebaseUsage('write', 1);
+
       const index = currentData.findIndex(r => r.id === record.id);
       let newData;
       if (index > -1) {
@@ -83,6 +111,8 @@ export const StorageService = {
   delete: async (id: string, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, id));
+      trackFirebaseUsage('delete', 1);
+      
       const newData = currentData.filter(r => r.id !== id);
       localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
       return newData;
@@ -100,6 +130,7 @@ export const StorageService = {
         batch.set(docRef, sanitizeData(item), { merge: true });
       });
       await batch.commit();
+      trackFirebaseUsage('write', importedData.length);
       localStorage.removeItem(CACHE_KEY);
     } catch (error) {
       console.error("Error Import:", error);
@@ -108,12 +139,11 @@ export const StorageService = {
   },
 
   seedData: async () => {
-    // Evitar lectura de comprobación si ya tenemos datos locales
     if (localStorage.getItem(CACHE_KEY)) return;
-    
     try {
       const recordsRef = collection(db, COLLECTION_NAME);
       const snapshot = await getDocs(recordsRef);
+      trackFirebaseUsage('read', 1);
       if (snapshot.empty) {
         const initialData: MaintenanceRecord[] = [
           { 
@@ -125,6 +155,7 @@ export const StorageService = {
         ];
         for (const record of initialData) {
             await setDoc(doc(db, COLLECTION_NAME, record.id), record);
+            trackFirebaseUsage('write', 1);
         }
       }
     } catch (e) {}

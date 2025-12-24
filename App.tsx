@@ -5,11 +5,13 @@ import { StorageService } from './services/storageService';
 import { GeminiService } from './services/geminiService';
 import { RecordForm } from './components/RecordForm';
 import { RecordCard } from './components/RecordCard';
+import * as XLSX from 'xlsx';
 import { 
   Plus, Search, Menu, X, Moon, Sun,
   AlertTriangle, History, Lock, Loader2, 
   Camera, Check, FileSpreadsheet, UploadCloud,
-  ChevronLeft, ChevronRight, Clock, RotateCcw, List as ListIcon
+  ChevronLeft, ChevronRight, Clock, RotateCcw, List as ListIcon,
+  Database, Activity, PowerOff, LayoutDashboard, Download
 } from 'lucide-react';
 
 export default function App() {
@@ -34,10 +36,20 @@ export default function App() {
   const [devMode, setDevMode] = useState(false);
   const [showPinInput, setShowPinInput] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
+  const [usageStats, setUsageStats] = useState(StorageService.getUsageStats());
 
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (devMode) {
+      const interval = setInterval(() => {
+        setUsageStats(StorageService.getUsageStats());
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [devMode]);
 
   useEffect(() => {
     if (toast) {
@@ -69,7 +81,6 @@ export default function App() {
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => setToast({ message, type });
   
   const loadInitialData = async () => {
-    // Usamos caché local primero sin forzar refresco de red (minimiza lecturas)
     await StorageService.seedData();
     const records = await StorageService.getAll(false);
     setData(records);
@@ -164,15 +175,102 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Estación', 'NES', 'Código', 'Tipo', 'Estado', 'Fecha'];
-    const rows = data.map(item => [item.station, item.nes, item.deviceCode, item.deviceType, item.status, item.date].join(';'));
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `metro_bcn_informe.csv`;
-    link.click();
+  const handleExportExcel = () => {
+    try {
+      // 1. Preparar los datos para el worksheet aplanando el objeto de lecturas
+      const exportData = data.map(item => {
+        const r = item.readings || {};
+        return {
+          'Estación': item.station,
+          'NES': item.nes,
+          'Código Matriz': item.deviceCode,
+          'Tipo de Equipo': item.deviceType,
+          'Estado': item.status,
+          'Localización': item.location || 'N/A',
+          'Fecha Registro': formatDate(item.date),
+          
+          // Lecturas Principales
+          'Lectura Genérica (A)': r.generic || '',
+          'Bomba 1 / V. Rápida (A)': r.pump1 || r.speedFast || '',
+          'Bomba 2 / V. Lenta (A)': r.pump2 || r.speedSlow || '',
+          
+          // Tiempos y Ciclos (Pozos/Fosas)
+          'Cursa (cm)': r.stroke || '',
+          'T. Llenado (s)': r.filling || '',
+          'T. Vaciado B1 (s)': r.emptyingB1 || '',
+          'T. Vaciado B2 (s)': r.emptyingB2 || '',
+          
+          // Vibraciones (Ventiladores)
+          'Vib. Lenta (m/s²)': r.vibrationSlow || '',
+          'Vib. Rápida (m/s²)': r.vibrationFast || '',
+          
+          // Protecciones Eléctricas 1
+          'Fusibles 1 (A)': r.fuses1 || '',
+          'Térmico Min 1 (A)': r.thermalMin1 || '',
+          'Térmico Max 1 (A)': r.thermalMax1 || '',
+          'Regulado 1 (A/Hz)': r.regulated1 || '',
+          
+          // Protecciones Eléctricas 2
+          'Fusibles 2 (A)': r.fuses2 || '',
+          'Térmico Min 2 (A)': r.thermalMin2 || '',
+          'Térmico Max 2 (A)': r.thermalMax2 || '',
+          'Regulado 2 (A/Hz)': r.regulated2 || '',
+          
+          // Variador
+          'Variador VFD': r.hasVFD ? 'SI' : 'NO',
+          
+          'Observaciones': item.notes || ''
+        };
+      });
+
+      // 2. Crear un nuevo libro de trabajo (Workbook)
+      const wb = XLSX.utils.book_new();
+      
+      // 3. Convertir el array de objetos a un worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // 4. Ajustar anchos de columna automáticamente para mejorar la legibilidad
+      const wscols = [
+        {wch: 25}, // Estacion
+        {wch: 12}, // NES
+        {wch: 15}, // Codigo
+        {wch: 20}, // Tipo
+        {wch: 12}, // Estado
+        {wch: 25}, // Localizacion
+        {wch: 20}, // Fecha
+        {wch: 20}, // Lectura Gen
+        {wch: 22}, // B1/Rapida
+        {wch: 22}, // B2/Lenta
+        {wch: 12}, // Cursa
+        {wch: 15}, // Llenado
+        {wch: 15}, // Vac B1
+        {wch: 15}, // Vac B2
+        {wch: 18}, // Vib Len
+        {wch: 18}, // Vib Rap
+        {wch: 14}, // Fus 1
+        {wch: 16}, // T Min 1
+        {wch: 16}, // T Max 1
+        {wch: 18}, // Reg 1
+        {wch: 14}, // Fus 2
+        {wch: 16}, // T Min 2
+        {wch: 16}, // T Max 2
+        {wch: 18}, // Reg 2
+        {wch: 12}, // VFD
+        {wch: 40}  // Notas
+      ];
+      ws['!cols'] = wscols;
+
+      // 5. Añadir el worksheet al libro
+      XLSX.utils.book_append_sheet(wb, ws, "Mantenimiento_Metro");
+
+      // 6. Generar el archivo y descargarlo como .xlsx
+      XLSX.writeFile(wb, `MetroMaint_BCN_Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      showToast('Excel generado correctamente (1 columna por dato)', 'success');
+    } catch (error) {
+      console.error("Error al exportar Excel:", error);
+      showToast('Error al generar el Excel', 'error');
+    }
   };
 
   const filteredData = data.filter(item => {
@@ -206,7 +304,21 @@ export default function App() {
       return new Date(isoString).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
 
+  const getTimeToReset = () => {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const diff = tomorrow.getTime() - now.getTime();
+    const h = Math.floor(diff / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${h}h ${m}m`;
+  };
+
   const isSearchActive = searchTerm.trim().length > 0 || (batchSearchResults !== null) || showAllRecords;
+
+  const quotaReads = Math.min((usageStats.reads / 50000) * 100, 100);
+  const quotaWrites = Math.min(((usageStats.writes + usageStats.deletes) / 20000) * 100, 100);
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -225,20 +337,66 @@ export default function App() {
             </button>
           </div>
           {mobileMenuOpen && (
-            <div ref={menuRef} className="bg-slate-800 border-t border-slate-700 px-4 py-4 space-y-4 shadow-xl">
+            <div ref={menuRef} className="bg-slate-800 border-t border-slate-700 px-4 py-4 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
               <button onClick={() => setDarkMode(!darkMode)} className="w-full flex items-center justify-between p-3 rounded-lg bg-slate-700/50 text-slate-200">
                 <div className="flex items-center gap-3">{darkMode ? <Moon size={18}/> : <Sun size={18}/>}<span>Modo {darkMode ? 'Oscuro' : 'Claro'}</span></div>
                 <div className={`w-8 h-4 rounded-full relative ${darkMode ? 'bg-blue-600' : 'bg-slate-500'}`}><div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${darkMode ? 'translate-x-4' : 'translate-x-0.5'}`} /></div>
               </button>
 
               {devMode && (
-                <div className="pt-4 border-t border-slate-700 grid grid-cols-2 gap-2">
-                  <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
-                  <button onClick={() => importInputRef.current?.click()} className="p-2 bg-slate-700 text-blue-400 rounded text-xs flex flex-col items-center"><UploadCloud size={16}/>Importar</button>
-                  <button onClick={handleExportCSV} className="p-2 bg-green-800 text-white rounded text-xs flex flex-col items-center"><FileSpreadsheet size={16}/>Excel</button>
+                <div className="pt-4 border-t border-slate-700 space-y-4 animate-in slide-in-from-top duration-300">
+                  <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
+                    <div className="flex items-center gap-2 mb-3">
+                      <LayoutDashboard size={16} className="text-blue-400" />
+                      <h4 className="text-xs font-black uppercase text-slate-200 tracking-widest">Control de Cuotas (Estimado)</h4>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-[10px] mb-1 font-bold text-slate-400 uppercase">
+                          <span>Lecturas</span>
+                          <span className={usageStats.reads > 40000 ? 'text-red-400' : 'text-slate-200'}>{usageStats.reads.toLocaleString()} / 50k</span>
+                        </div>
+                        <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all duration-1000 ${usageStats.reads > 40000 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${quotaReads}%` }}></div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between text-[10px] mb-1 font-bold text-slate-400 uppercase">
+                          <span>Escrituras</span>
+                          <span className={(usageStats.writes + usageStats.deletes) > 15000 ? 'text-red-400' : 'text-slate-200'}>{(usageStats.writes + usageStats.deletes).toLocaleString()} / 20k</span>
+                        </div>
+                        <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all duration-1000 ${(usageStats.writes + usageStats.deletes) > 15000 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${quotaWrites}%` }}></div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-700/50">
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase">
+                          <Clock size={12} className="text-slate-500" />
+                          <span>Reseteo en: {getTimeToReset()}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase">
+                          <Database size={12} className="text-slate-500" />
+                          <span>Plan Spark</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
+                    <button onClick={() => importInputRef.current?.click()} className="p-3 bg-slate-700 hover:bg-slate-600 text-blue-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-slate-600 transition-all"><UploadCloud size={20}/>Importar</button>
+                    <button onClick={handleExportExcel} className="p-3 bg-green-900/50 hover:bg-green-800 text-green-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-green-800/30 transition-all"><Download size={20}/>Excel (.xlsx)</button>
+                  </div>
+                  
+                  <button onClick={() => { setDevMode(false); setMobileMenuOpen(false); showToast('Modo Admin cerrado', 'info'); }} className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl text-xs font-black uppercase border border-red-900/30 flex items-center justify-center gap-2 transition-all">
+                    <PowerOff size={16}/> Cerrar Modo Admin
+                  </button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.4 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.7 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
