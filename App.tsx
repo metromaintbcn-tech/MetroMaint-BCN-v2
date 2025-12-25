@@ -112,6 +112,23 @@ export default function App() {
 
   const handleEdit = (record: MaintenanceRecord) => { setEditingRecord(record); setView('EDIT'); };
 
+  const getLineColor = (deviceCode: string | undefined) => {
+    if (!deviceCode) return 'border-l-gray-300 dark:border-l-gray-600'; 
+    const match = deviceCode.match(/(\d{1,2})/);
+    const num = match ? parseInt(match[0], 10) : -1;
+    switch (num) {
+        case 1: return 'border-l-red-600 dark:border-l-red-500';     
+        case 2: return 'border-l-purple-600 dark:border-l-purple-500';  
+        case 3: return 'border-l-green-600 dark:border-l-green-500';   
+        case 4: return 'border-l-yellow-400 dark:border-l-yellow-400';  
+        case 5: return 'border-l-blue-600 dark:border-l-blue-500';     
+        case 9: return 'border-l-orange-400 dark:border-l-orange-400'; 
+        case 10: return 'border-l-sky-400 dark:border-l-sky-400';    
+        case 11: return 'border-l-lime-400 dark:border-l-lime-400';   
+        default: return 'border-l-gray-300 dark:border-l-gray-600';   
+    }
+  };
+
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -361,17 +378,25 @@ export default function App() {
                 <div className="flex items-center justify-between mb-3 px-1">
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="text-amber-600" size={20} />
-                        <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Incidencias Activas</h2>
+                        <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight flex items-center gap-2">
+                            Incidencias Activas
+                            <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full min-w-[20px] text-center">{activeIncidents.length}</span>
+                        </h2>
                     </div>
                 </div>
                 <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x">
                     {activeIncidents.map(incident => (
-                        <div key={incident.id} onClick={() => handleEdit(incident)} className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-amber-500 shadow-md border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors">
+                        <div key={incident.id} onClick={() => handleEdit(incident)} className={`flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 ${getLineColor(incident.deviceCode)} shadow-md border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors`}>
                             <div className="flex justify-between items-start mb-1">
                                 <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{incident.deviceCode}</span>
                                 <span className="text-[10px] text-slate-500 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter"><Clock size={10} /> {formatDate(incident.date).split(',')[0]}</span>
                             </div>
-                            <h3 className="font-black text-slate-950 dark:text-white text-sm truncate mb-1 tracking-tight">{incident.station}</h3>
+                            <h3 className="font-black text-slate-950 dark:text-white text-sm truncate tracking-tight">{incident.station}</h3>
+                            {incident.notes && (
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400 italic line-clamp-2 mt-1 border-t border-slate-100 dark:border-slate-700/50 pt-1">
+                                    {incident.notes}
+                                </p>
+                            )}
                         </div>
                     ))}
                 </div>
