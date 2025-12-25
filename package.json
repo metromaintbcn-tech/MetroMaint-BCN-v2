@@ -16,8 +16,7 @@
     "lucide-react": "^0.555.0",
     "recharts": "^3.5.1",
     "@google/genai": "^1.30.0",
-    "firebase": "^12.6.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.19.3/xlsx-0.19.3.tgz"
+    "firebase": "^12.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

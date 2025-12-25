@@ -5,7 +5,6 @@ import { StorageService } from './services/storageService';
 import { GeminiService } from './services/geminiService';
 import { RecordForm } from './components/RecordForm';
 import { RecordCard } from './components/RecordCard';
-import * as XLSX from 'xlsx';
 import { 
   Plus, Search, Menu, X, Moon, Sun,
   AlertTriangle, History, Lock, Loader2, 
@@ -175,101 +174,66 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleExportExcel = () => {
+  const handleExportCSV = () => {
     try {
-      // 1. Preparar los datos para el worksheet aplanando el objeto de lecturas
-      const exportData = data.map(item => {
+      const headers = [
+        'Estación', 'NES', 'Código Matriz', 'Tipo de Equipo', 'Estado', 
+        'Localización', 'Fecha Registro', 'Lectura Genérica (A)', 
+        'Bomba 1 / V. Rápida (A)', 'Bomba 2 / V. Lenta (A)',
+        'Cursa (cm)', 'T. Llenado (s)', 'T. Vaciado B1 (s)', 'T. Vaciado B2 (s)',
+        'Vib. Lenta (m/s²)', 'Vib. Rápida (m/s²)',
+        'Fusibles 1 (A)', 'Térmico Min 1 (A)', 'Térmico Max 1 (A)', 'Regulado 1 (A/Hz)',
+        'Fusibles 2 (A)', 'Térmico Min 2 (A)', 'Térmico Max 2 (A)', 'Regulado 2 (A/Hz)',
+        'Variador VFD', 'Observaciones'
+      ];
+
+      const rows = data.map(item => {
         const r = item.readings || {};
-        return {
-          'Estación': item.station,
-          'NES': item.nes,
-          'Código Matriz': item.deviceCode,
-          'Tipo de Equipo': item.deviceType,
-          'Estado': item.status,
-          'Localización': item.location || 'N/A',
-          'Fecha Registro': formatDate(item.date),
-          
-          // Lecturas Principales
-          'Lectura Genérica (A)': r.generic || '',
-          'Bomba 1 / V. Rápida (A)': r.pump1 || r.speedFast || '',
-          'Bomba 2 / V. Lenta (A)': r.pump2 || r.speedSlow || '',
-          
-          // Tiempos y Ciclos (Pozos/Fosas)
-          'Cursa (cm)': r.stroke || '',
-          'T. Llenado (s)': r.filling || '',
-          'T. Vaciado B1 (s)': r.emptyingB1 || '',
-          'T. Vaciado B2 (s)': r.emptyingB2 || '',
-          
-          // Vibraciones (Ventiladores)
-          'Vib. Lenta (m/s²)': r.vibrationSlow || '',
-          'Vib. Rápida (m/s²)': r.vibrationFast || '',
-          
-          // Protecciones Eléctricas 1
-          'Fusibles 1 (A)': r.fuses1 || '',
-          'Térmico Min 1 (A)': r.thermalMin1 || '',
-          'Térmico Max 1 (A)': r.thermalMax1 || '',
-          'Regulado 1 (A/Hz)': r.regulated1 || '',
-          
-          // Protecciones Eléctricas 2
-          'Fusibles 2 (A)': r.fuses2 || '',
-          'Térmico Min 2 (A)': r.thermalMin2 || '',
-          'Térmico Max 2 (A)': r.thermalMax2 || '',
-          'Regulado 2 (A/Hz)': r.regulated2 || '',
-          
-          // Variador
-          'Variador VFD': r.hasVFD ? 'SI' : 'NO',
-          
-          'Observaciones': item.notes || ''
-        };
+        return [
+          item.station,
+          item.nes,
+          item.deviceCode,
+          item.deviceType,
+          item.status,
+          item.location || 'N/A',
+          formatDate(item.date),
+          r.generic || '',
+          r.pump1 || r.speedFast || '',
+          r.pump2 || r.speedSlow || '',
+          r.stroke || '',
+          r.filling || '',
+          r.emptyingB1 || '',
+          r.emptyingB2 || '',
+          r.vibrationSlow || '',
+          r.vibrationFast || '',
+          r.fuses1 || '',
+          r.thermalMin1 || '',
+          r.thermalMax1 || '',
+          r.regulated1 || '',
+          r.fuses2 || '',
+          r.thermalMin2 || '',
+          r.thermalMax2 || '',
+          r.regulated2 || '',
+          r.hasVFD ? 'SI' : 'NO',
+          (item.notes || '').replace(/[\n\r]/g, ' ')
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';'); // Usamos punto y coma para Excel ES
       });
 
-      // 2. Crear un nuevo libro de trabajo (Workbook)
-      const wb = XLSX.utils.book_new();
+      const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `MetroMaint_BCN_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
-      // 3. Convertir el array de objetos a un worksheet
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // 4. Ajustar anchos de columna automáticamente para mejorar la legibilidad
-      const wscols = [
-        {wch: 25}, // Estacion
-        {wch: 12}, // NES
-        {wch: 15}, // Codigo
-        {wch: 20}, // Tipo
-        {wch: 12}, // Estado
-        {wch: 25}, // Localizacion
-        {wch: 20}, // Fecha
-        {wch: 20}, // Lectura Gen
-        {wch: 22}, // B1/Rapida
-        {wch: 22}, // B2/Lenta
-        {wch: 12}, // Cursa
-        {wch: 15}, // Llenado
-        {wch: 15}, // Vac B1
-        {wch: 15}, // Vac B2
-        {wch: 18}, // Vib Len
-        {wch: 18}, // Vib Rap
-        {wch: 14}, // Fus 1
-        {wch: 16}, // T Min 1
-        {wch: 16}, // T Max 1
-        {wch: 18}, // Reg 1
-        {wch: 14}, // Fus 2
-        {wch: 16}, // T Min 2
-        {wch: 16}, // T Max 2
-        {wch: 18}, // Reg 2
-        {wch: 12}, // VFD
-        {wch: 40}  // Notas
-      ];
-      ws['!cols'] = wscols;
-
-      // 5. Añadir el worksheet al libro
-      XLSX.utils.book_append_sheet(wb, ws, "Mantenimiento_Metro");
-
-      // 6. Generar el archivo y descargarlo como .xlsx
-      XLSX.writeFile(wb, `MetroMaint_BCN_Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
-      showToast('Excel generado correctamente (1 columna por dato)', 'success');
+      showToast('Archivo CSV generado (abrir con Excel)', 'success');
     } catch (error) {
-      console.error("Error al exportar Excel:", error);
-      showToast('Error al generar el Excel', 'error');
+      console.error("Error al exportar CSV:", error);
+      showToast('Error al generar el CSV', 'error');
     }
   };
 
@@ -388,7 +352,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-2">
                     <input type="file" accept=".csv" className="hidden" ref={importInputRef} onChange={handleImportChange}/>
                     <button onClick={() => importInputRef.current?.click()} className="p-3 bg-slate-700 hover:bg-slate-600 text-blue-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-slate-600 transition-all"><UploadCloud size={20}/>Importar</button>
-                    <button onClick={handleExportExcel} className="p-3 bg-green-900/50 hover:bg-green-800 text-green-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-green-800/30 transition-all"><Download size={20}/>Excel (.xlsx)</button>
+                    <button onClick={handleExportCSV} className="p-3 bg-green-900/50 hover:bg-green-800 text-green-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-green-800/30 transition-all"><Download size={20}/>Exportar CSV</button>
                   </div>
                   
                   <button onClick={() => { setDevMode(false); setMobileMenuOpen(false); showToast('Modo Admin cerrado', 'info'); }} className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl text-xs font-black uppercase border border-red-900/30 flex items-center justify-center gap-2 transition-all">
@@ -396,7 +360,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.7 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.8 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
