@@ -1,3 +1,4 @@
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
@@ -9,7 +10,6 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
   // Cargamos las variables de entorno (incluyendo las de Vercel)
-  // Fix: Use path.resolve() instead of process.cwd() to fix 'Property cwd does not exist on type Process' error.
   const env = loadEnv(mode, path.resolve(), '');
 
   return {
@@ -24,13 +24,13 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      // Este es el puente crítico: 
-      // Mapeamos la variable VITE_API_KEY que tienes en Vercel 
-      // al objeto process.env.API_KEY que requiere el SDK de Gemini.
+      // Mapeo explícito de variables críticas para que funcionen en producción
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY || env.API_KEY),
-      // Mantenemos compatibilidad para otros posibles usos de process.env
+      'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY),
+      // Mantenemos compatibilidad de objeto para otros módulos
       'process.env': {
-        API_KEY: JSON.stringify(env.VITE_API_KEY || env.API_KEY)
+        API_KEY: JSON.stringify(env.VITE_API_KEY || env.API_KEY),
+        VITE_FIREBASE_API_KEY: JSON.stringify(env.VITE_FIREBASE_API_KEY || env.FIREBASE_API_KEY)
       }
     }
   };

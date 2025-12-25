@@ -13,10 +13,8 @@ import {
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'maintenance_records';
-const CACHE_KEY = 'metro_bcn_data_cache';
 const USAGE_KEY = 'metro_firebase_usage';
-// Caché agresiva: 24 horas para minimizar lecturas en el plan gratuito
-const CACHE_DURATION = 24 * 60 * 60 * 1000; 
+const SEED_KEY = 'metro_bcn_seeded_v1';
 
 const sanitizeData = (data: any) => {
   return JSON.parse(JSON.stringify(data));
@@ -50,14 +48,10 @@ export const StorageService = {
 
   getAll: async (forceRefresh = false): Promise<MaintenanceRecord[]> => {
     try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      if (cached && !forceRefresh) {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < CACHE_DURATION) {
-          return parsed.data;
-        }
-      }
-
+      // Eliminamos el caché manual de 24h. 
+      // Firebase SDK con enableIndexedDbPersistence ya gestiona el ahorro de datos
+      // y la disponibilidad offline de forma mucho más eficiente y sincronizada.
+      
       const recordsRef = collection(db, COLLECTION_NAME);
       const q = query(recordsRef, orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
@@ -67,19 +61,12 @@ export const StorageService = {
         data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
       });
       
-      // Tracking: cada documento leído cuenta como una lectura en Firebase
       trackFirebaseUsage('read', querySnapshot.size || 1);
-
-      localStorage.setItem(CACHE_KEY, JSON.stringify({
-        timestamp: Date.now(),
-        data: data
-      }));
       
       return data;
     } catch (error) {
       console.error("Error Firebase getAll:", error);
-      const cached = localStorage.getItem(CACHE_KEY);
-      return cached ? JSON.parse(cached).data : [];
+      return [];
     }
   },
 
@@ -100,7 +87,6 @@ export const StorageService = {
         newData = [record, ...currentData];
       }
 
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
       return newData;
     } catch (error) {
       console.error("Error Firebase save:", error);
@@ -114,7 +100,6 @@ export const StorageService = {
       trackFirebaseUsage('delete', 1);
       
       const newData = currentData.filter(r => r.id !== id);
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data: newData }));
       return newData;
     } catch (error) {
       console.error("Error Firebase delete:", error);
@@ -131,7 +116,6 @@ export const StorageService = {
       });
       await batch.commit();
       trackFirebaseUsage('write', importedData.length);
-      localStorage.removeItem(CACHE_KEY);
     } catch (error) {
       console.error("Error Import:", error);
       throw error;
@@ -139,7 +123,7 @@ export const StorageService = {
   },
 
   seedData: async () => {
-    if (localStorage.getItem(CACHE_KEY)) return;
+    if (localStorage.getItem(SEED_KEY)) return;
     try {
       const recordsRef = collection(db, COLLECTION_NAME);
       const snapshot = await getDocs(recordsRef);
@@ -158,6 +142,7 @@ export const StorageService = {
             trackFirebaseUsage('write', 1);
         }
       }
+      localStorage.setItem(SEED_KEY, 'true');
     } catch (e) {}
   }
 };
