@@ -11,31 +11,26 @@ import {
   query, 
   orderBy,
   onSnapshot,
-  Unsubscribe
+  Unsubscribe,
+  limit,
+  where,
+  getCountFromServer,
+  startAt,
+  endAt
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'maintenance_records';
 const USAGE_KEY = 'metro_firebase_usage';
-const SEED_KEY = 'metro_bcn_seeded_v1';
-
-const sanitizeData = (data: any) => {
-  return JSON.parse(JSON.stringify(data));
-};
 
 const trackFirebaseUsage = (type: 'read' | 'write' | 'delete', count: number = 1) => {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const stored = localStorage.getItem(USAGE_KEY);
   let stats = stored ? JSON.parse(stored) : { date: today, reads: 0, writes: 0, deletes: 0 };
-
-  if (stats.date !== today) {
-    stats = { date: today, reads: 0, writes: 0, deletes: 0 };
-  }
-
+  if (stats.date !== today) stats = { date: today, reads: 0, writes: 0, deletes: 0 };
   if (type === 'read') stats.reads += count;
   if (type === 'write') stats.writes += count;
   if (type === 'delete') stats.deletes += count;
-
   localStorage.setItem(USAGE_KEY, JSON.stringify(stats));
 };
 
@@ -43,106 +38,129 @@ export const StorageService = {
   getUsageStats: () => {
     const today = new Date().toISOString().split('T')[0];
     const stored = localStorage.getItem(USAGE_KEY);
-    const stats = stored ? JSON.parse(stored) : { date: today, reads: 0, writes: 0, deletes: 0 };
-    if (stats.date !== today) return { date: today, reads: 0, writes: 0, deletes: 0 };
-    return stats;
+    return stored ? JSON.parse(stored) : { date: today, reads: 0, writes: 0, deletes: 0 };
   },
 
-  /**
-   * Suscribe a la colección en tiempo real.
-   * Firebase gestiona internamente la caché y solo notifica cambios.
-   */
-  subscribeToRecords: (onUpdate: (records: MaintenanceRecord[]) => void): Unsubscribe => {
-    const recordsRef = collection(db, COLLECTION_NAME);
-    const q = query(recordsRef, orderBy("date", "desc"));
-    
+  getTotalCount: async (): Promise<number> => {
+    try {
+      const coll = collection(db, COLLECTION_NAME);
+      const snapshot = await getCountFromServer(coll);
+      trackFirebaseUsage('read', 1);
+      return snapshot.data().count;
+    } catch (e) { return 0; }
+  },
+
+  getByCodes: async (codes: string[]): Promise<MaintenanceRecord[]> => {
+    if (!codes.length) return [];
+    try {
+      const records: MaintenanceRecord[] = [];
+      const chunks = [];
+      for (let i = 0; i < codes.length; i += 10) chunks.push(codes.slice(i, i + 10));
+
+      for (const chunk of chunks) {
+        const qNes = query(collection(db, COLLECTION_NAME), where("nes", "in", chunk));
+        const qDev = query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk));
+        const [snapNes, snapDev] = await Promise.all([getDocs(qNes), getDocs(qDev)]);
+        snapNes.forEach(doc => records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
+        snapDev.forEach(doc => {
+          if (!records.find(r => r.id === doc.id)) records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+        });
+        trackFirebaseUsage('read', snapNes.size + snapDev.size);
+      }
+      return records;
+    } catch (e) { return []; }
+  },
+
+  searchByText: async (text: string): Promise<MaintenanceRecord[]> => {
+    if (text.length < 2) return [];
+    try {
+      const searchUpper = text.toUpperCase();
+      const searchCapitalized = text.charAt(0).toUpperCase() + text.slice(1);
+      
+      // Realizamos 3 búsquedas dirigidas para cubrir Código, NES y Estación
+      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(10));
+      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(10));
+      const qStation = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchCapitalized), endAt(searchCapitalized + '\uf8ff'), limit(10));
+
+      const [sCode, sNes, sStation] = await Promise.all([getDocs(qCode), getDocs(qNes), getDocs(qStation)]);
+      
+      const records: MaintenanceRecord[] = [];
+      const ids = new Set();
+      [sCode, sNes, sStation].forEach(snap => {
+        snap.forEach(doc => {
+          if (!ids.has(doc.id)) {
+            ids.add(doc.id);
+            records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+          }
+        });
+      });
+
+      trackFirebaseUsage('read', sCode.size + sNes.size + sStation.size);
+      return records;
+    } catch (e) { return []; }
+  },
+
+  subscribeToIncidents: (onUpdate: (records: MaintenanceRecord[]) => void): Unsubscribe => {
+    const q = query(collection(db, COLLECTION_NAME), where("status", "==", EquipmentStatus.INCIDENT));
     return onSnapshot(q, (snapshot) => {
       const data: MaintenanceRecord[] = [];
-      snapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
-      });
-      
-      // En tiempo real, trackeamos el tamaño inicial o cambios
+      snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
       trackFirebaseUsage('read', snapshot.docChanges().length || snapshot.size);
       onUpdate(data);
-    }, (error) => {
-      console.error("Error en suscripción tiempo real:", error);
     });
   },
 
-  // Mantenemos getAll por compatibilidad de tipos, pero la App usará subscribe
+  subscribeToRecent: (onUpdate: (records: MaintenanceRecord[]) => void): Unsubscribe => {
+    const q = query(collection(db, COLLECTION_NAME), orderBy("date", "desc"), limit(5));
+    return onSnapshot(q, (snapshot) => {
+      const data: MaintenanceRecord[] = [];
+      snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
+      trackFirebaseUsage('read', snapshot.docChanges().length || snapshot.size);
+      onUpdate(data);
+    });
+  },
+
   getAll: async (): Promise<MaintenanceRecord[]> => {
     try {
-      const recordsRef = collection(db, COLLECTION_NAME);
-      const q = query(recordsRef, orderBy("date", "desc")); 
+      const q = query(collection(db, COLLECTION_NAME), orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
+      trackFirebaseUsage('read', querySnapshot.size);
       const data: MaintenanceRecord[] = [];
-      querySnapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
-      });
-      trackFirebaseUsage('read', querySnapshot.size || 1);
+      querySnapshot.forEach((doc) => data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
       return data;
-    } catch (error) {
-      return [];
-    }
+    } catch (error) { return []; }
   },
 
   save: async (record: MaintenanceRecord): Promise<void> => {
-    try {
-      const docRef = doc(db, COLLECTION_NAME, record.id);
-      const cleanRecord = sanitizeData(record);
-      await setDoc(docRef, cleanRecord, { merge: true });
-      trackFirebaseUsage('write', 1);
-    } catch (error) {
-      console.error("Error Firebase save:", error);
-      throw error;
-    }
+    const docRef = doc(db, COLLECTION_NAME, record.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(record)), { merge: true });
+    trackFirebaseUsage('write', 1);
   },
 
   delete: async (id: string): Promise<void> => {
-    try {
-      await deleteDoc(doc(db, COLLECTION_NAME, id));
-      trackFirebaseUsage('delete', 1);
-    } catch (error) {
-      console.error("Error Firebase delete:", error);
-      throw error;
-    }
+    await deleteDoc(doc(db, COLLECTION_NAME, id));
+    trackFirebaseUsage('delete', 1);
   },
 
   importData: async (importedData: MaintenanceRecord[]): Promise<void> => {
-    try {
-      const batch = writeBatch(db);
-      importedData.forEach((item) => {
-        const docRef = doc(db, COLLECTION_NAME, item.id);
-        batch.set(docRef, sanitizeData(item), { merge: true });
-      });
-      await batch.commit();
-      trackFirebaseUsage('write', importedData.length);
-    } catch (error) {
-      console.error("Error Import:", error);
-      throw error;
-    }
+    const batch = writeBatch(db);
+    importedData.forEach((item) => {
+      const docRef = doc(db, COLLECTION_NAME, item.id);
+      batch.set(docRef, JSON.parse(JSON.stringify(item)), { merge: true });
+    });
+    await batch.commit();
+    trackFirebaseUsage('write', importedData.length);
   },
 
   seedData: async () => {
+    const SEED_KEY = 'metro_seeded_v1';
     if (localStorage.getItem(SEED_KEY)) return;
-    try {
-      const recordsRef = collection(db, COLLECTION_NAME);
-      const snapshot = await getDocs(recordsRef);
-      if (snapshot.empty) {
-        const initialData: MaintenanceRecord[] = [
-          { 
-            id: 'seed-1', station: 'Sagrada Familia', nes: '023PV', deviceCode: 'VE 01-11-05',
-            deviceType: DeviceType.VENT_ESTACION, status: EquipmentStatus.OPERATIONAL,
-            readings: { speedFast: 12.5, speedSlow: 8.2 }, date: new Date().toISOString(),
-            notes: 'Dato inicial de sistema.'
-          }
-        ];
-        for (const record of initialData) {
-            await setDoc(doc(db, COLLECTION_NAME, record.id), record);
-        }
-      }
-      localStorage.setItem(SEED_KEY, 'true');
-    } catch (e) {}
+    const coll = collection(db, COLLECTION_NAME);
+    const snap = await getDocs(query(coll, limit(1)));
+    if (snap.empty) {
+      const initial = { id: 'seed-1', station: 'Sagrada Familia', nes: '001PV', deviceCode: 'VE 01-11-05', deviceType: DeviceType.VENT_ESTACION, status: EquipmentStatus.OPERATIONAL, readings: {}, date: new Date().toISOString() };
+      await setDoc(doc(db, COLLECTION_NAME, initial.id), initial);
+    }
+    localStorage.setItem(SEED_KEY, 'true');
   }
 };
