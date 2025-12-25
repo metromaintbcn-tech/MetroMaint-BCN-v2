@@ -9,7 +9,9 @@ import {
   deleteDoc, 
   writeBatch, 
   query, 
-  orderBy 
+  orderBy,
+  onSnapshot,
+  Unsubscribe
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'maintenance_records';
@@ -46,61 +48,61 @@ export const StorageService = {
     return stats;
   },
 
-  getAll: async (forceRefresh = false): Promise<MaintenanceRecord[]> => {
-    try {
-      // Eliminamos el caché manual de 24h. 
-      // Firebase SDK con enableIndexedDbPersistence ya gestiona el ahorro de datos
-      // y la disponibilidad offline de forma mucho más eficiente y sincronizada.
+  /**
+   * Suscribe a la colección en tiempo real.
+   * Firebase gestiona internamente la caché y solo notifica cambios.
+   */
+  subscribeToRecords: (onUpdate: (records: MaintenanceRecord[]) => void): Unsubscribe => {
+    const recordsRef = collection(db, COLLECTION_NAME);
+    const q = query(recordsRef, orderBy("date", "desc"));
+    
+    return onSnapshot(q, (snapshot) => {
+      const data: MaintenanceRecord[] = [];
+      snapshot.forEach((doc) => {
+        data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+      });
       
+      // En tiempo real, trackeamos el tamaño inicial o cambios
+      trackFirebaseUsage('read', snapshot.docChanges().length || snapshot.size);
+      onUpdate(data);
+    }, (error) => {
+      console.error("Error en suscripción tiempo real:", error);
+    });
+  },
+
+  // Mantenemos getAll por compatibilidad de tipos, pero la App usará subscribe
+  getAll: async (): Promise<MaintenanceRecord[]> => {
+    try {
       const recordsRef = collection(db, COLLECTION_NAME);
       const q = query(recordsRef, orderBy("date", "desc")); 
       const querySnapshot = await getDocs(q);
-      
       const data: MaintenanceRecord[] = [];
       querySnapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
       });
-      
       trackFirebaseUsage('read', querySnapshot.size || 1);
-      
       return data;
     } catch (error) {
-      console.error("Error Firebase getAll:", error);
       return [];
     }
   },
 
-  save: async (record: MaintenanceRecord, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
+  save: async (record: MaintenanceRecord): Promise<void> => {
     try {
       const docRef = doc(db, COLLECTION_NAME, record.id);
       const cleanRecord = sanitizeData(record);
       await setDoc(docRef, cleanRecord, { merge: true });
-      
       trackFirebaseUsage('write', 1);
-
-      const index = currentData.findIndex(r => r.id === record.id);
-      let newData;
-      if (index > -1) {
-        newData = [...currentData];
-        newData[index] = record;
-      } else {
-        newData = [record, ...currentData];
-      }
-
-      return newData;
     } catch (error) {
       console.error("Error Firebase save:", error);
       throw error;
     }
   },
 
-  delete: async (id: string, currentData: MaintenanceRecord[]): Promise<MaintenanceRecord[]> => {
+  delete: async (id: string): Promise<void> => {
     try {
       await deleteDoc(doc(db, COLLECTION_NAME, id));
       trackFirebaseUsage('delete', 1);
-      
-      const newData = currentData.filter(r => r.id !== id);
-      return newData;
     } catch (error) {
       console.error("Error Firebase delete:", error);
       throw error;
@@ -127,19 +129,17 @@ export const StorageService = {
     try {
       const recordsRef = collection(db, COLLECTION_NAME);
       const snapshot = await getDocs(recordsRef);
-      trackFirebaseUsage('read', 1);
       if (snapshot.empty) {
         const initialData: MaintenanceRecord[] = [
           { 
             id: 'seed-1', station: 'Sagrada Familia', nes: '023PV', deviceCode: 'VE 01-11-05',
             deviceType: DeviceType.VENT_ESTACION, status: EquipmentStatus.OPERATIONAL,
-            readings: { speedFast: 120.5, speedSlow: 80.2 }, date: new Date().toISOString(),
+            readings: { speedFast: 12.5, speedSlow: 8.2 }, date: new Date().toISOString(),
             notes: 'Dato inicial de sistema.'
           }
         ];
         for (const record of initialData) {
             await setDoc(doc(db, COLLECTION_NAME, record.id), record);
-            trackFirebaseUsage('write', 1);
         }
       }
       localStorage.setItem(SEED_KEY, 'true');

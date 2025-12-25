@@ -37,8 +37,19 @@ export default function App() {
   const [pinInputValue, setPinInputValue] = useState('');
   const [usageStats, setUsageStats] = useState(StorageService.getUsageStats());
 
+  // SUSCRIPCIÓN EN TIEMPO REAL
   useEffect(() => {
-    loadInitialData();
+    const init = async () => {
+      await StorageService.seedData();
+    };
+    init();
+
+    // El listener onSnapshot se encarga de llenar el estado inicial y los cambios futuros
+    const unsubscribe = StorageService.subscribeToRecords((records) => {
+      setData(records);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -78,28 +89,21 @@ export default function App() {
   }, [recordToDelete, deleteCountdown]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => setToast({ message, type });
-  
-  const loadInitialData = async () => {
-    await StorageService.seedData();
-    const records = await StorageService.getAll(false);
-    setData(records);
-  };
 
   const handleSave = async (record: MaintenanceRecord) => {
     try {
-      const updatedData = await StorageService.save(record, data);
-      setData(updatedData);
+      // Ya no actualizamos setData aquí, el listener onSnapshot lo hará por nosotros
+      await StorageService.save(record);
       setView('LIST');
       setEditingRecord(null);
-      showToast('Datos guardados correctamente');
+      showToast('Datos sincronizados correctamente');
     } catch (e) { showToast('Error al guardar. Comprueba tu conexión.', 'error'); }
   };
 
   const confirmDelete = async () => {
     if (!recordToDelete || !recordToDelete.id) return;
     try { 
-      const updatedData = await StorageService.delete(recordToDelete.id, data);
-      setData(updatedData);
+      await StorageService.delete(recordToDelete.id);
       showToast('Registro eliminado', 'info'); 
     } 
     catch (error) { showToast('Error al eliminar', 'error'); } 
@@ -165,9 +169,7 @@ export default function App() {
             }
             if (newRecords.length > 0) { 
               await StorageService.importData(newRecords); 
-              const refreshed = await StorageService.getAll(true);
-              setData(refreshed);
-              showToast(`Importados ${newRecords.length} equipos`, 'success'); 
+              showToast(`Importando ${newRecords.length} equipos...`, 'success'); 
             }
         } catch (err) { showToast('Error al importar CSV', 'error'); }
     };
@@ -216,7 +218,7 @@ export default function App() {
           r.regulated2 || '',
           r.hasVFD ? 'SI' : 'NO',
           (item.notes || '').replace(/[\n\r]/g, ' ')
-        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';'); // Usamos punto y coma para Excel ES
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(';');
       });
 
       const csvContent = "\uFEFF" + [headers.join(';'), ...rows].join('\n');
@@ -230,9 +232,8 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       
-      showToast('Archivo CSV generado (abrir con Excel)', 'success');
+      showToast('Archivo CSV generado', 'success');
     } catch (error) {
-      console.error("Error al exportar CSV:", error);
       showToast('Error al generar el CSV', 'error');
     }
   };
@@ -312,7 +313,7 @@ export default function App() {
                   <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700">
                     <div className="flex items-center gap-2 mb-3">
                       <LayoutDashboard size={16} className="text-blue-400" />
-                      <h4 className="text-xs font-black uppercase text-slate-200 tracking-widest">Control de Cuotas (Estimado)</h4>
+                      <h4 className="text-xs font-black uppercase text-slate-200 tracking-widest">Estado de Sincronización</h4>
                     </div>
                     
                     <div className="space-y-3">
@@ -335,17 +336,6 @@ export default function App() {
                           <div className={`h-full transition-all duration-1000 ${(usageStats.writes + usageStats.deletes) > 15000 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${quotaWrites}%` }}></div>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-700/50">
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase">
-                          <Clock size={12} className="text-slate-500" />
-                          <span>Reseteo en: {getTimeToReset()}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase">
-                          <Database size={12} className="text-slate-500" />
-                          <span>Plan Spark</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
 
@@ -355,12 +345,12 @@ export default function App() {
                     <button onClick={handleExportCSV} className="p-3 bg-green-900/50 hover:bg-green-800 text-green-400 rounded-xl text-xs font-black uppercase flex flex-col items-center gap-2 border border-green-800/30 transition-all"><Download size={20}/>Exportar CSV</button>
                   </div>
                   
-                  <button onClick={() => { setDevMode(false); setMobileMenuOpen(false); showToast('Modo Admin cerrado', 'info'); }} className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl text-xs font-black uppercase border border-red-900/30 flex items-center justify-center gap-2 transition-all">
+                  <button onClick={() => { setDevMode(false); setMobileMenuOpen(false); showToast('Admin desactivado', 'info'); }} className="w-full py-3 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-xl text-xs font-black uppercase border border-red-900/30 flex items-center justify-center gap-2 transition-all">
                     <PowerOff size={16}/> Cerrar Modo Admin
                   </button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.5.8 • MetroMaint BCN</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50"><p className="text-[10px]">v1.6.0 • Sincronización Tiempo Real</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -372,24 +362,16 @@ export default function App() {
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="text-amber-600" size={20} />
                         <h2 className="font-black text-slate-900 dark:text-slate-200 uppercase tracking-tight">Incidencias Activas</h2>
-                        <span className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full text-xs font-black border border-amber-200 dark:border-amber-800 ml-1">
-                            {activeIncidents.length}
-                        </span>
                     </div>
                 </div>
                 <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x">
                     {activeIncidents.map(incident => (
-                        <div key={incident.id} onClick={() => handleEdit(incident)} className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-amber-500 shadow-md border-t border-r border-b border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors">
+                        <div key={incident.id} onClick={() => handleEdit(incident)} className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-amber-500 shadow-md border-slate-200 dark:border-slate-700 snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                                 <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest">{incident.deviceCode}</span>
                                 <span className="text-[10px] text-slate-500 dark:text-slate-500 font-bold flex items-center gap-1 uppercase tracking-tighter"><Clock size={10} /> {formatDate(incident.date).split(',')[0]}</span>
                             </div>
                             <h3 className="font-black text-slate-950 dark:text-white text-sm truncate mb-1 tracking-tight">{incident.station}</h3>
-                            {incident.notes && (
-                                <p className="text-[10px] text-slate-600 dark:text-slate-400 italic line-clamp-1 border-t border-slate-100 dark:border-slate-700 pt-1 mt-1 opacity-80">
-                                    {incident.notes}
-                                </p>
-                            )}
                         </div>
                     ))}
                 </div>
@@ -413,8 +395,8 @@ export default function App() {
                 </div>
                 {batchSearchResults && (
                     <div className="mt-2 px-2 flex items-center justify-between text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-widest">
-                        <span>Resultados del escáner ({filteredData.length})</span>
-                        <button onClick={() => setBatchSearchResults(null)} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">Limpiar Escáner <X size={12}/></button>
+                        <span>Resultados ({filteredData.length})</span>
+                        <button onClick={() => setBatchSearchResults(null)} className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded">Limpiar <X size={12}/></button>
                     </div>
                 )}
              </div>
@@ -425,11 +407,11 @@ export default function App() {
               {!isSearchActive ? (
                 <div className="flex flex-col items-center justify-start max-w-2xl mx-auto w-full animate-in fade-in">
                     <div className="grid grid-cols-2 gap-4 w-full px-4 mb-10">
-                        <button onClick={() => { setEditingRecord(null); setView('ADD'); }} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-700 group">
+                        <button onClick={() => { setEditingRecord(null); setView('ADD'); }} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all shadow-md hover:shadow-lg hover:border-blue-400 dark:hover:border-blue-700 group">
                            <div className="h-14 w-14 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors"><Plus className="text-blue-700 group-hover:text-white" size={28} /></div>
                            <span className="font-black dark:text-white uppercase tracking-tight text-slate-800">Nuevo</span>
                         </button>
-                        <button onClick={() => batchFileRef.current?.click()} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all active:scale-95 shadow-md hover:shadow-lg group hover:border-red-400 dark:hover:border-red-700">
+                        <button onClick={() => batchFileRef.current?.click()} className="p-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col items-center transition-all shadow-md hover:shadow-lg group hover:border-red-400 dark:hover:border-red-700">
                            <div className="h-14 w-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-600 transition-colors">
                                 {isScanningBatch ? <Loader2 className="animate-spin text-white" size={28} /> : <Camera className="text-red-700 group-hover:text-white" size={28} />}
                            </div>
@@ -504,7 +486,7 @@ export default function App() {
                     <h3 className="font-bold mb-4 dark:text-white text-slate-900">PIN Administrador</h3>
                     <form onSubmit={(e) => {
                         e.preventDefault();
-                        if (pinInputValue === '8386') { setDevMode(true); setShowPinInput(false); setPinInputValue(''); showToast('Modo Admin activado'); } 
+                        if (pinInputValue === '8386') { setDevMode(true); setShowPinInput(false); setPinInputValue(''); showToast('Admin activo'); } 
                         else { showToast('PIN Incorrecto', 'error'); setPinInputValue(''); }
                     }} className="flex gap-2">
                         <input type="password" value={pinInputValue} onChange={(e) => setPinInputValue(e.target.value)} className="p-2 border rounded dark:bg-slate-700 dark:text-white text-slate-950" autoFocus />
