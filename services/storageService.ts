@@ -54,21 +54,40 @@ export const StorageService = {
     if (!codes.length) return [];
     try {
       const records: MaintenanceRecord[] = [];
+      
+      // Normalización: Para el campo 'nes', quitamos el prefijo 'NES' (ej: NES001PE -> 001PE)
+      // Para 'deviceCode', lo dejamos tal cual o aseguramos mayúsculas
+      const nesSearchTerms = codes.map(c => c.toUpperCase().replace(/^NES/, ''));
+      const deviceSearchTerms = codes.map(c => c.toUpperCase());
+      
       const chunks = [];
-      for (let i = 0; i < codes.length; i += 10) chunks.push(codes.slice(i, i + 10));
+      for (let i = 0; i < codes.length; i += 10) {
+        chunks.push({
+          nes: nesSearchTerms.slice(i, i + 10),
+          dev: deviceSearchTerms.slice(i, i + 10)
+        });
+      }
 
       for (const chunk of chunks) {
-        const qNes = query(collection(db, COLLECTION_NAME), where("nes", "in", chunk));
-        const qDev = query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk));
+        const qNes = query(collection(db, COLLECTION_NAME), where("nes", "in", chunk.nes));
+        const qDev = query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk.dev));
+        
         const [snapNes, snapDev] = await Promise.all([getDocs(qNes), getDocs(qDev)]);
-        snapNes.forEach(doc => records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
+        
+        snapNes.forEach(doc => {
+          if (!records.find(r => r.id === doc.id)) records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+        });
         snapDev.forEach(doc => {
           if (!records.find(r => r.id === doc.id)) records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
         });
+        
         trackFirebaseUsage('read', snapNes.size + snapDev.size);
       }
       return records;
-    } catch (e) { return []; }
+    } catch (e) { 
+      console.error("Storage Error:", e);
+      return []; 
+    }
   },
 
   searchByText: async (text: string): Promise<MaintenanceRecord[]> => {
@@ -76,17 +95,11 @@ export const StorageService = {
     try {
       const searchRaw = text.trim();
       const searchUpper = searchRaw.toUpperCase();
-      
-      // Normalización para nombres compuestos: intentamos Title Case y Upper Case
       const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
       const searchTitle = toTitleCase(searchRaw);
-      
-      // NES: Quitar prefijo 'NES' por si el operario lo escribe
       const searchNes = searchUpper.replace(/^NES/, '');
-      
       const SURGICAL_LIMIT = 5;
 
-      // Realizamos búsquedas paralelas para cubrir diferentes formatos de nombres compuestos y códigos
       const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(SURGICAL_LIMIT));
       const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(SURGICAL_LIMIT));
       const qStationTitle = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchTitle), endAt(searchTitle + '\uf8ff'), limit(SURGICAL_LIMIT));
@@ -112,7 +125,6 @@ export const StorageService = {
       });
 
       trackFirebaseUsage('read', sCode.size + sNes.size + sTitle.size + sUpper.size);
-      // Devolvemos solo los 5 más relevantes en total tras la unión
       return records.slice(0, 5);
     } catch (e) { return []; }
   },

@@ -82,17 +82,25 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Actúa como un experto en mantenimiento de Metro Barcelona. Analiza la imagen y extrae TODOS los códigos de identificación de equipos presentes en las placas. 
+                { text: `ERES UN EXPERTO EN OCR DE PLACAS TÉCNICAS DE METRO BARCELONA. 
                 
-                Formatos CRÍTICOS a detectar:
-                1. Códigos NES completos: Deben incluir el prefijo "NES", los números y el sufijo de dos letras al final. (Ejemplos válidos: NES003FS, NES001PV, NES120PE, NES045PT). Es vital capturar las letras del final.
-                2. Códigos de Equipo (Matriz): Dos letras seguidas de números (ej. PE 01-13-01). 
+                TU MISIÓN: Extraer TODOS los códigos de identificación de equipos. 
                 
-                REGLAS DE NORMALIZACIÓN:
-                - Códigos Matriz: Si los números tienen un solo dígito, DEBES transformarlo a dos dígitos (ej. 'PE 1-1-1' -> 'PE 01-01-01').
-                - Códigos NES: Asegúrate de que contengan el prefijo "NES" y el sufijo completo.
+                PATRONES OBLIGATORIOS A DETECTAR:
+                1. CÓDIGOS NES: Deben empezar por "NES" seguido de 3 números y SIEMPRE 2 letras al final. 
+                   Ejemplos: "NES003FS", "NES012PV", "NES120PT", "NES045PE", "NES001VT". 
+                   ¡ATENCIÓN! No ignores las letras finales (FS, PV, PT, PE, VT). Son fundamentales.
                 
-                Devuelve solo un array JSON de strings con los códigos encontrados sin ningún texto adicional.` }
+                2. CÓDIGOS DE MATRIZ: Dos letras seguidas de números con guiones. 
+                   Ejemplos: "PE 01-11-05", "VE 02-14-10", "VT 01-01-01". 
+                   Si ves números de un solo dígito (ej. PE 1-1-1), NORMALÍZALOS a dos dígitos (PE 01-01-01).
+
+                INSTRUCCIONES ADICIONALES:
+                - Escanea toda la imagen buscando etiquetas, placas metálicas o serigrafía en cuadros eléctricos.
+                - Ignora fechas, números de serie largos que no sigan estos patrones o descripciones de texto.
+                - Si un código NES está cortado, intenta reconstruirlo basándote en el formato estándar.
+                
+                SALIDA: Devuelve ÚNICAMENTE un array JSON de strings con los códigos limpios.` }
             ]
         },
         config: {

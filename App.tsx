@@ -29,7 +29,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
-  // Estados para Jornada
+  // Estados para Jornada con Persistencia Inmediata
   const [journalSearchTerm, setJournalSearchTerm] = useState('');
   const [journalResults, setJournalResults] = useState<MaintenanceRecord[]>(() => {
     const saved = localStorage.getItem(JOURNAL_STORAGE_KEY);
@@ -103,13 +103,17 @@ export default function App() {
     setIsSearching(true);
     try {
       const records = await StorageService.getByCodes(codes);
-      setJournalResults(prev => {
-        const existingIds = new Set(prev.map(r => r.id));
-        const newOnes = records.filter(r => !existingIds.has(r.id));
-        return [...prev, ...newOnes];
-      });
-      if (!manualCodes) setJournalSearchTerm('');
-      showToast(`Añadidos ${records.length} equipos`);
+      if (records.length === 0) {
+        showToast('No se encontraron registros', 'info');
+      } else {
+        setJournalResults(prev => {
+          const existingIds = new Set(prev.map(r => r.id));
+          const newOnes = records.filter(r => !existingIds.has(r.id));
+          return [...prev, ...newOnes];
+        });
+        if (!manualCodes) setJournalSearchTerm('');
+        showToast(`Añadidos ${records.length} equipos`);
+      }
     } catch (e) {
       showToast('Error en búsqueda múltiple', 'error');
     } finally {
@@ -141,7 +145,7 @@ export default function App() {
 
   const handleJournalScannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    setIsScanning(true); showToast('Analizando placa para Jornada...', 'info');
+    setIsScanning(true); showToast('Analizando placa...', 'info');
     try {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -205,7 +209,7 @@ export default function App() {
                   <button onClick={() => setDevMode(false)} className="w-full py-2 bg-red-900/20 text-red-500 rounded-lg text-xs font-bold border border-red-900/30 flex items-center justify-center gap-2"><PowerOff size={16}/> Salir Admin</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.6 • Ultra-Quirúrgico</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.7 • Ultra-OCR</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -263,7 +267,7 @@ export default function App() {
                     </button>
                     <button onClick={() => setView('JOURNAL')} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all relative">
                       {journalResults.length > 0 && (
-                        <div className="absolute top-2 right-2 h-5 min-w-[20px] px-1 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-800 animate-pulse">
+                        <div className="absolute top-2 right-2 h-5 min-w-[20px] px-1 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-800 animate-pulse z-10">
                           {journalResults.length}
                         </div>
                       )}
@@ -293,32 +297,32 @@ export default function App() {
 
           {view === 'JOURNAL' && (
             <div className="max-w-2xl mx-auto w-full px-4">
-              <div className="mb-6 flex items-center justify-between">
-                <button onClick={() => setView('LIST')} className="flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-widest"><History size={16}/> Volver</button>
+              <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <button onClick={() => setView('LIST')} className="self-start flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-widest"><History size={16}/> Volver</button>
                 <div className="flex flex-col items-center">
                   <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Menú Jornada</h2>
                   <span className="text-[10px] text-slate-400 font-bold uppercase">{journalResults.length} Equipos en lista</span>
                 </div>
-                <button onClick={() => { if(confirm('¿Limpiar la lista de jornada?')) setJournalResults([]); }} className="text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
+                <button onClick={() => { if(confirm('¿Limpiar la lista de jornada?')) setJournalResults([]); }} className="self-end text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 mb-8">
+              <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 mb-8">
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest">Añadir Equipos (Comas o Escáner)</label>
-                <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-col gap-2">
                   <input 
                     type="text" 
-                    className="flex-1 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-slate-900 dark:text-white min-w-0"
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-slate-900 dark:text-white text-sm sm:text-base"
                     placeholder="NES001FS, PE 01-11-05..."
                     value={journalSearchTerm}
                     onChange={(e) => setJournalSearchTerm(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleJournalSearch()}
                   />
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button onClick={() => handleJournalSearch()} disabled={isSearching || isScanning} className="flex-1 sm:flex-none px-4 py-3 bg-purple-600 text-white rounded-xl font-bold uppercase text-[10px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+                  <div className="flex gap-2">
+                    <button onClick={() => handleJournalSearch()} disabled={isSearching || isScanning} className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold uppercase text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
                       {isSearching ? <Loader2 size={16} className="animate-spin"/> : <Search size={16}/>}
                       Buscar
                     </button>
-                    <button onClick={() => journalScannerRef.current?.click()} disabled={isScanning || isSearching} className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-[10px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+                    <button onClick={() => journalScannerRef.current?.click()} disabled={isScanning || isSearching} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
                       {isScanning ? <Loader2 size={16} className="animate-spin"/> : <Camera size={16}/>}
                       Cámara
                     </button>
