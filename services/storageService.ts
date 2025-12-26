@@ -74,13 +74,26 @@ export const StorageService = {
   searchByText: async (text: string): Promise<MaintenanceRecord[]> => {
     if (text.length < 2) return [];
     try {
-      const searchUpper = text.toUpperCase();
-      const searchCapitalized = text.charAt(0).toUpperCase() + text.slice(1);
+      const searchRaw = text.trim();
+      const searchUpper = searchRaw.toUpperCase();
       
-      // Realizamos 3 búsquedas dirigidas para cubrir Código, NES y Estación
-      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(10));
-      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(10));
-      const qStation = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchCapitalized), endAt(searchCapitalized + '\uf8ff'), limit(10));
+      // Normalización para nombres compuestos (ej: "santa rosa" -> "Santa Rosa")
+      const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
+      const searchTitle = toTitleCase(searchRaw);
+      
+      // Para NES: Quitar prefijo 'NES'
+      const searchNes = searchUpper.replace('NES', '');
+      
+      const surgicalLimit = 5;
+
+      // Query 1: Por Código de Equipo (Matriz)
+      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(surgicalLimit));
+      
+      // Query 2: Por NES
+      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(surgicalLimit));
+      
+      // Query 3: Por Estación (Probamos con Title Case que es el estándar de Metro)
+      const qStation = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchTitle), endAt(searchTitle + '\uf8ff'), limit(surgicalLimit));
 
       const [sCode, sNes, sStation] = await Promise.all([getDocs(qCode), getDocs(qNes), getDocs(qStation)]);
       
