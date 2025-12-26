@@ -12,6 +12,8 @@ import {
   Download, PowerOff, LayoutDashboard, ClipboardList, Trash
 } from 'lucide-react';
 
+const JOURNAL_STORAGE_KEY = 'metro_journal_results';
+
 export default function App() {
   const [searchResults, setSearchResults] = useState<MaintenanceRecord[]>([]);
   const [recentData, setRecentData] = useState<MaintenanceRecord[]>([]);
@@ -29,7 +31,10 @@ export default function App() {
 
   // Estados para Jornada
   const [journalSearchTerm, setJournalSearchTerm] = useState('');
-  const [journalResults, setJournalResults] = useState<MaintenanceRecord[]>([]);
+  const [journalResults, setJournalResults] = useState<MaintenanceRecord[]>(() => {
+    const saved = localStorage.getItem(JOURNAL_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [recordToDelete, setRecordToDelete] = useState<MaintenanceRecord | null>(null);
@@ -53,6 +58,11 @@ export default function App() {
     const unsubRecent = StorageService.subscribeToRecent(setRecentData);
     return () => { unsubIncidents(); unsubRecent(); };
   }, []);
+
+  // Persistencia de Jornada
+  useEffect(() => {
+    localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(journalResults));
+  }, [journalResults]);
 
   // EFECTO DE BÚSQUEDA QUIRÚRGICA (NES, Código o Estación)
   useEffect(() => {
@@ -195,7 +205,7 @@ export default function App() {
                   <button onClick={() => setDevMode(false)} className="w-full py-2 bg-red-900/20 text-red-500 rounded-lg text-xs font-bold border border-red-900/30 flex items-center justify-center gap-2"><PowerOff size={16}/> Salir Admin</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.5 • Ultra-Quirúrgico</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.6 • Ultra-Quirúrgico</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -251,7 +261,12 @@ export default function App() {
                       <div className="h-10 w-10 bg-red-100 text-red-700 rounded-xl flex items-center justify-center mb-2"><Camera size={24} /></div>
                       <span className="font-black dark:text-white uppercase text-[10px] tracking-widest">Escáner</span>
                     </button>
-                    <button onClick={() => setView('JOURNAL')} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
+                    <button onClick={() => setView('JOURNAL')} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all relative">
+                      {journalResults.length > 0 && (
+                        <div className="absolute top-2 right-2 h-5 min-w-[20px] px-1 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-800 animate-pulse">
+                          {journalResults.length}
+                        </div>
+                      )}
                       <div className="h-10 w-10 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center mb-2"><ClipboardList size={24} /></div>
                       <span className="font-black dark:text-white uppercase text-[10px] tracking-widest">Jornada</span>
                     </button>
@@ -280,8 +295,11 @@ export default function App() {
             <div className="max-w-2xl mx-auto w-full px-4">
               <div className="mb-6 flex items-center justify-between">
                 <button onClick={() => setView('LIST')} className="flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-widest"><History size={16}/> Volver</button>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Menú Jornada</h2>
-                <button onClick={() => setJournalResults([])} className="text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
+                <div className="flex flex-col items-center">
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Menú Jornada</h2>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">{journalResults.length} Equipos en lista</span>
+                </div>
+                <button onClick={() => { if(confirm('¿Limpiar la lista de jornada?')) setJournalResults([]); }} className="text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
               </div>
 
               <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 mb-8">
@@ -290,7 +308,7 @@ export default function App() {
                   <input 
                     type="text" 
                     className="flex-1 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-slate-900 dark:text-white min-w-0"
-                    placeholder="NES001, PE 01-11-05..."
+                    placeholder="NES001FS, PE 01-11-05..."
                     value={journalSearchTerm}
                     onChange={(e) => setJournalSearchTerm(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleJournalSearch()}

@@ -82,16 +82,17 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `Actúa como un experto en mantenimiento de Metro. Analiza la imagen y extrae códigos de identificación de equipos. 
-                Formatos esperados:
-                1. Códigos NES: Deben empezar por NES seguido de números y el sufijo correspondiente (ej. NES004PE, NES150FS).
-                2. Códigos de Equipo (Matriz): Dos letras seguidas de números separados por guiones (ej. PE 01-13-01). 
+                { text: `Actúa como un experto en mantenimiento de Metro Barcelona. Analiza la imagen y extrae TODOS los códigos de identificación de equipos presentes en las placas. 
                 
-                REGLA CRÍTICA DE NORMALIZACIÓN:
-                - Si los números en el código de equipo tienen un solo dígito, DEBES añadir un cero a la izquierda para que siempre tengan dos dígitos (ej. transforma 'PE 1-13-1' en 'PE 01-13-01').
-                - Asegúrate de que el código NES incluya el prefijo "NES".
+                Formatos CRÍTICOS a detectar:
+                1. Códigos NES completos: Deben incluir el prefijo "NES", los números y el sufijo de dos letras al final. (Ejemplos válidos: NES003FS, NES001PV, NES120PE, NES045PT). Es vital capturar las letras del final.
+                2. Códigos de Equipo (Matriz): Dos letras seguidas de números (ej. PE 01-13-01). 
                 
-                Devuelve solo un array JSON de strings con los códigos encontrados.` }
+                REGLAS DE NORMALIZACIÓN:
+                - Códigos Matriz: Si los números tienen un solo dígito, DEBES transformarlo a dos dígitos (ej. 'PE 1-1-1' -> 'PE 01-01-01').
+                - Códigos NES: Asegúrate de que contengan el prefijo "NES" y el sufijo completo.
+                
+                Devuelve solo un array JSON de strings con los códigos encontrados sin ningún texto adicional.` }
             ]
         },
         config: {
