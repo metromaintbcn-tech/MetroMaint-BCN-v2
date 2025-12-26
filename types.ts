@@ -69,7 +69,7 @@ export interface MaintenanceRecord {
   lastModifiedBy?: string;
 }
 
-export type ViewState = 'LIST' | 'ADD' | 'EDIT';
+export type ViewState = 'LIST' | 'ADD' | 'EDIT' | 'JOURNAL';
 
 export const METRO_COLORS = {
   primary: '#dc2626', // Red-600 (Metro Red-ish)

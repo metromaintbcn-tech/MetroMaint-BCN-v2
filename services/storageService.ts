@@ -77,29 +77,32 @@ export const StorageService = {
       const searchRaw = text.trim();
       const searchUpper = searchRaw.toUpperCase();
       
-      // Normalización para nombres compuestos (ej: "santa rosa" -> "Santa Rosa")
+      // Normalización para nombres compuestos: intentamos Title Case y Upper Case
       const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
       const searchTitle = toTitleCase(searchRaw);
       
-      // Para NES: Quitar prefijo 'NES'
-      const searchNes = searchUpper.replace('NES', '');
+      // NES: Quitar prefijo 'NES' por si el operario lo escribe
+      const searchNes = searchUpper.replace(/^NES/, '');
       
-      const surgicalLimit = 5;
+      const SURGICAL_LIMIT = 5;
 
-      // Query 1: Por Código de Equipo (Matriz)
-      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(surgicalLimit));
-      
-      // Query 2: Por NES
-      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(surgicalLimit));
-      
-      // Query 3: Por Estación (Probamos con Title Case que es el estándar de Metro)
-      const qStation = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchTitle), endAt(searchTitle + '\uf8ff'), limit(surgicalLimit));
+      // Realizamos búsquedas paralelas para cubrir diferentes formatos de nombres compuestos y códigos
+      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(SURGICAL_LIMIT));
+      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(SURGICAL_LIMIT));
+      const qStationTitle = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchTitle), endAt(searchTitle + '\uf8ff'), limit(SURGICAL_LIMIT));
+      const qStationUpper = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(SURGICAL_LIMIT));
 
-      const [sCode, sNes, sStation] = await Promise.all([getDocs(qCode), getDocs(qNes), getDocs(qStation)]);
+      const [sCode, sNes, sTitle, sUpper] = await Promise.all([
+        getDocs(qCode), 
+        getDocs(qNes), 
+        getDocs(qStationTitle),
+        getDocs(qStationUpper)
+      ]);
       
       const records: MaintenanceRecord[] = [];
       const ids = new Set();
-      [sCode, sNes, sStation].forEach(snap => {
+      
+      [sCode, sNes, sTitle, sUpper].forEach(snap => {
         snap.forEach(doc => {
           if (!ids.has(doc.id)) {
             ids.add(doc.id);
@@ -108,8 +111,9 @@ export const StorageService = {
         });
       });
 
-      trackFirebaseUsage('read', sCode.size + sNes.size + sStation.size);
-      return records;
+      trackFirebaseUsage('read', sCode.size + sNes.size + sTitle.size + sUpper.size);
+      // Devolvemos solo los 5 más relevantes en total tras la unión
+      return records.slice(0, 5);
     } catch (e) { return []; }
   },
 

@@ -9,7 +9,7 @@ import {
   Plus, Search, Menu, X, Moon, Sun,
   AlertTriangle, History, Lock, Loader2, 
   Camera, Check, List as ListIcon,
-  Download, PowerOff, LayoutDashboard
+  Download, PowerOff, LayoutDashboard, ClipboardList, Trash
 } from 'lucide-react';
 
 export default function App() {
@@ -27,6 +27,10 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
+  // Estados para Jornada
+  const [journalSearchTerm, setJournalSearchTerm] = useState('');
+  const [journalResults, setJournalResults] = useState<MaintenanceRecord[]>([]);
+
   const [toast, setToast] = useState<{message: string, type: 'success' | 'info' | 'error'} | null>(null);
   const [recordToDelete, setRecordToDelete] = useState<MaintenanceRecord | null>(null);
   const [devMode, setDevMode] = useState(false);
@@ -35,6 +39,7 @@ export default function App() {
   const [usageStats, setUsageStats] = useState(StorageService.getUsageStats());
 
   const batchFileRef = useRef<HTMLInputElement>(null);
+  const journalScannerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -60,7 +65,7 @@ export default function App() {
       } else {
         setSearchResults([]);
       }
-    }, 400); 
+    }, 300); 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm]);
 
@@ -68,11 +73,38 @@ export default function App() {
     try {
       await StorageService.save(record);
       setTotalEquipments(await StorageService.getTotalCount());
-      setView('LIST');
+      
+      // Si estamos en Jornada, actualizar la lista de Jornada también
+      if (journalResults.some(r => r.id === record.id)) {
+        setJournalResults(prev => prev.map(r => r.id === record.id ? record : r));
+      }
+
+      setView(view === 'JOURNAL' ? 'JOURNAL' : 'LIST');
       setEditingRecord(null);
       setSearchTerm('');
       showToast('Sincronizado');
     } catch (e) { showToast('Error al guardar', 'error'); }
+  };
+
+  const handleJournalSearch = async (manualCodes?: string[]) => {
+    const codes = manualCodes || journalSearchTerm.split(',').map(c => c.trim().toUpperCase()).filter(c => c.length > 0);
+    if (codes.length === 0) return;
+    
+    setIsSearching(true);
+    try {
+      const records = await StorageService.getByCodes(codes);
+      setJournalResults(prev => {
+        const existingIds = new Set(prev.map(r => r.id));
+        const newOnes = records.filter(r => !existingIds.has(r.id));
+        return [...prev, ...newOnes];
+      });
+      if (!manualCodes) setJournalSearchTerm('');
+      showToast(`Añadidos ${records.length} equipos`);
+    } catch (e) {
+      showToast('Error en búsqueda múltiple', 'error');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleBatchFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +121,25 @@ export default function App() {
           setSearchResults(records);
           setSearchTerm('');
           showToast(`Encontrados ${records.length} equipos`);
+        } else {
+          showToast('No se detectaron códigos', 'error');
+        }
+        setIsScanning(false);
+      };
+    } catch (e) { setIsScanning(false); showToast('Error en escáner', 'error'); }
+  };
+
+  const handleJournalScannerChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    setIsScanning(true); showToast('Analizando placa para Jornada...', 'info');
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async (event) => {
+        const base64 = (event.target?.result as string).split(',')[1];
+        const codes = await GeminiService.extractCodesFromDocument(base64);
+        if (codes && codes.length > 0) {
+          await handleJournalSearch(codes);
         } else {
           showToast('No se detectaron códigos', 'error');
         }
@@ -123,18 +174,28 @@ export default function App() {
                 <div className="flex items-center gap-3">{darkMode ? <Moon size={18}/> : <Sun size={18}/>}<span>Modo {darkMode ? 'Oscuro' : 'Claro'}</span></div>
               </button>
               {devMode && (
-                <div className="p-4 bg-slate-900 rounded-xl border border-slate-700 space-y-4">
+                <div className="p-4 mt-4 bg-slate-900 rounded-xl border border-slate-700 space-y-4">
                   <div className="flex items-center gap-2 mb-2 text-blue-400 font-bold uppercase text-xs"><LayoutDashboard size={14}/> Consumo Firebase</div>
                   <div className="text-[10px] text-slate-400">Lecturas: {usageStats.reads} / 50,000</div>
                   <button onClick={async () => {
-                    const csv = await StorageService.getAll();
-                    // Lógica de exportar CSV (omitida por brevedad, mantenida del original)
-                    showToast('CSV Generado');
+                    const csvData = await StorageService.getAll();
+                    const headers = "id,station,nes,deviceCode,deviceType,status,date,notes\n";
+                    const rows = csvData.map(r => `${r.id},${r.station},${r.nes},${r.deviceCode},${r.deviceType},${r.status},${r.date},"${r.notes || ''}"`).join("\n");
+                    const blob = new Blob([headers + rows], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.setAttribute('hidden', '');
+                    a.setAttribute('href', url);
+                    a.setAttribute('download', `reporte_metro_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    showToast('Reporte generado');
                   }} className="w-full py-2 bg-green-900/30 text-green-400 rounded-lg text-xs font-bold uppercase flex items-center justify-center gap-2 border border-green-800/30"><Download size={16}/> Exportar Reporte</button>
                   <button onClick={() => setDevMode(false)} className="w-full py-2 bg-red-900/20 text-red-500 rounded-lg text-xs font-bold border border-red-900/30 flex items-center justify-center gap-2"><PowerOff size={16}/> Salir Admin</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50 px-2"><p className="text-[10px]">v1.8.1 • Quirúrgico</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.5 • Ultra-Quirúrgico</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -162,7 +223,7 @@ export default function App() {
                 <input 
                   type="text" 
                   className="block w-full pl-12 pr-12 py-5 bg-white dark:bg-slate-800 rounded-2xl text-lg shadow-xl text-slate-950 dark:text-white font-bold placeholder:text-slate-400 border border-slate-200 dark:border-slate-700 outline-none focus:ring-4 focus:ring-red-500/10"
-                  placeholder="Ej: Sagrada, NES001, PE 01..." 
+                  placeholder="Ej: Santa Rosa, NES001, PE 01..." 
                   value={searchTerm} 
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -181,14 +242,18 @@ export default function App() {
             <>
               {!isSearchActive ? (
                 <div className="max-w-2xl mx-auto w-full">
-                  <div className="grid grid-cols-2 gap-4 mb-10 px-4">
-                    <button onClick={() => { setEditingRecord(null); setView('ADD'); }} className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
-                      <div className="h-12 w-12 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center mb-3"><Plus size={28} /></div>
-                      <span className="font-black dark:text-white uppercase text-xs tracking-widest">Nuevo</span>
+                  <div className="grid grid-cols-3 gap-4 mb-10 px-4">
+                    <button onClick={() => { setEditingRecord(null); setView('ADD'); }} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
+                      <div className="h-10 w-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center mb-2"><Plus size={24} /></div>
+                      <span className="font-black dark:text-white uppercase text-[10px] tracking-widest">Nuevo</span>
                     </button>
-                    <button onClick={() => batchFileRef.current?.click()} className="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
-                      <div className="h-12 w-12 bg-red-100 text-red-700 rounded-xl flex items-center justify-center mb-3"><Camera size={28} /></div>
-                      <span className="font-black dark:text-white uppercase text-xs tracking-widest">Escáner</span>
+                    <button onClick={() => batchFileRef.current?.click()} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
+                      <div className="h-10 w-10 bg-red-100 text-red-700 rounded-xl flex items-center justify-center mb-2"><Camera size={24} /></div>
+                      <span className="font-black dark:text-white uppercase text-[10px] tracking-widest">Escáner</span>
+                    </button>
+                    <button onClick={() => setView('JOURNAL')} className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center shadow-lg active:scale-95 transition-all">
+                      <div className="h-10 w-10 bg-purple-100 text-purple-700 rounded-xl flex items-center justify-center mb-2"><ClipboardList size={24} /></div>
+                      <span className="font-black dark:text-white uppercase text-[10px] tracking-widest">Jornada</span>
                     </button>
                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={batchFileRef} onChange={handleBatchFileChange}/>
                   </div>
@@ -200,9 +265,9 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 max-w-2xl mx-auto">
+                <div className="space-y-4 max-w-2xl mx-auto px-2">
                   {searchResults.length === 0 && !isSearching ? (
-                    <div className="p-12 text-center text-slate-500 font-bold bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300">No se encontraron coincidencias</div>
+                    <div className="p-12 text-center text-slate-500 font-bold bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300">No se encontraron coincidencias exactas</div>
                   ) : (
                     searchResults.map(item => <RecordCard key={item.id} item={item} onEdit={(r) => { setEditingRecord(r); setView('EDIT'); }} onDelete={(r) => setRecordToDelete(r)} formatDate={(d) => new Date(d).toLocaleString()} />)
                   )}
@@ -211,8 +276,53 @@ export default function App() {
             </>
           )}
 
+          {view === 'JOURNAL' && (
+            <div className="max-w-2xl mx-auto w-full px-4">
+              <div className="mb-6 flex items-center justify-between">
+                <button onClick={() => setView('LIST')} className="flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-widest"><History size={16}/> Volver</button>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Menú Jornada</h2>
+                <button onClick={() => setJournalResults([])} className="text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 mb-8">
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest">Añadir Equipos (Comas o Escáner)</label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input 
+                    type="text" 
+                    className="flex-1 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-slate-900 dark:text-white min-w-0"
+                    placeholder="NES001, PE 01-11-05..."
+                    value={journalSearchTerm}
+                    onChange={(e) => setJournalSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleJournalSearch()}
+                  />
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button onClick={() => handleJournalSearch()} disabled={isSearching || isScanning} className="flex-1 sm:flex-none px-4 py-3 bg-purple-600 text-white rounded-xl font-bold uppercase text-[10px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+                      {isSearching ? <Loader2 size={16} className="animate-spin"/> : <Search size={16}/>}
+                      Buscar
+                    </button>
+                    <button onClick={() => journalScannerRef.current?.click()} disabled={isScanning || isSearching} className="px-4 py-3 bg-red-600 text-white rounded-xl font-bold uppercase text-[10px] flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-50">
+                      {isScanning ? <Loader2 size={16} className="animate-spin"/> : <Camera size={16}/>}
+                      Cámara
+                    </button>
+                  </div>
+                  <input type="file" accept="image/*" capture="environment" className="hidden" ref={journalScannerRef} onChange={handleJournalScannerChange}/>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {journalResults.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 font-bold bg-white/50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                    La lista está vacía. Busca equipos o escanea placas para empezar tu jornada.
+                  </div>
+                ) : (
+                  journalResults.map(item => <RecordCard key={item.id} item={item} onEdit={(r) => { setEditingRecord(r); setView('EDIT'); }} onDelete={(r) => setRecordToDelete(r)} formatDate={(d) => new Date(d).toLocaleString()} />)
+                )}
+              </div>
+            </div>
+          )}
+
           {view === 'ADD' && <RecordForm existingRecords={allData} onSave={handleSave} onCancel={() => setView('LIST')} />}
-          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={allData} onSave={handleSave} onCancel={() => setView('LIST')} />}
+          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={allData} onSave={handleSave} onCancel={() => setView(view === 'JOURNAL' ? 'JOURNAL' : 'LIST')} />}
         </main>
 
         {toast && (
