@@ -73,7 +73,7 @@ export const GeminiService = {
   extractCodesFromDocument: async (base64Image: string): Promise<string[]> => {
     try {
       const usage = getUsageData();
-      if (usage.count >= DAILY_LIMIT) throw new Error("Límite diario alcanzado.");
+      if (usage.count >= DAILY_LIMIT) throw new Error("LÍMITE DIARIO DE IA ALCANZADO.");
 
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
@@ -82,21 +82,22 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `ERES UN EXPERTO EN DIGITALIZACIÓN DE PLACAS TÉCNICAS DE METRO BARCELONA. 
+                { text: `ERES UN EXPERTO EN DIGITALIZACIÓN DE PLACAS TÉCNICAS DE METRO BARCELONA. ANALIZA LA IMAGEN Y BUSCA ETIQUETAS.
                 
-                OBJETIVO: Extraer CADA CÓDIGO de identificación de equipo de la imagen.
+                TU MISIÓN: Extraer CADA CÓDIGO de identificación de equipo de la placa.
                 
                 REGLAS CRÍTICAS PARA CÓDIGOS NES:
-                - Estructura: Prefijo "NES" + 3 dígitos + 2 letras finales.
+                - Estructura: "NES" + 3 dígitos + 2 letras al final.
                 - EJEMPLOS: "NES003FS", "NES120PT", "NES001PV", "NES045PE".
-                - ¡IMPORTANTE!: A veces el texto está separado por espacios (ej. "NES 003 FS" o "NES003 FS"). Debes JUNTAR TODO en un solo string: "NES003FS".
-                - ¡ALERTA!: No ignores nunca las dos letras finales (FS, PT, PV, PE, VT, VE). Son la parte más importante. Búscalas justo después de los números.
+                - ¡IMPORTANTE!: A veces hay espacios, por ejemplo "NES 003 FS". Debes CONCATENARLO TODO: "NES003FS".
+                - ¡ALERTA!: Si ves "NES003" y hay letras como "FS" o "PV" cerca, ¡SON PARTE DEL CÓDIGO! No las ignores.
+                - FORMATO NES INVÁLIDO: No devuelvas códigos NES que no tengan las dos letras finales (FS, PT, PV, PE, VT, VE).
                 
-                REGLAS PARA CÓDIGOS DE MATRIZ:
-                - Estructura: 2 letras (PE, VE, VT, FS, etc.) + espacio + números con guiones.
+                REGLAS PARA CÓDIGOS DE EQUIPO (MATRIZ):
+                - Estructura: 2 letras (PE, VE, VT, FS, MA) + espacio + 00-00-00.
                 - Ejemplo: "PE 01-11-05". Si ves "PE 1-1-1", conviértelo a "PE 01-01-01".
 
-                SALIDA: Devuelve solo un array JSON de strings con los códigos hallados.` }
+                SALIDA: Devuelve ÚNICAMENTE un array JSON de strings ["CÓDIGO1", "CÓDIGO2"].` }
             ]
         },
         config: {
