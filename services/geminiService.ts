@@ -82,25 +82,25 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `ERES UN EXPERTO EN OCR DE PLACAS TÉCNICAS DE METRO BARCELONA. 
+                { text: `ERES UN EXPERTO EN MANTENIMIENTO DE METRO BARCELONA. ANALIZA ESTA PLACA TÉCNICA O ETIQUETA.
                 
-                TU MISIÓN: Extraer TODOS los códigos de identificación de equipos. 
+                OBJETIVO: Extraer CADA CÓDIGO de identificación.
                 
-                PATRONES OBLIGATORIOS A DETECTAR:
-                1. CÓDIGOS NES: Deben empezar por "NES" seguido de 3 números y SIEMPRE 2 letras al final. 
-                   Ejemplos: "NES003FS", "NES012PV", "NES120PT", "NES045PE", "NES001VT". 
-                   ¡ATENCIÓN! No ignores las letras finales (FS, PV, PT, PE, VT). Son fundamentales.
+                PATRONES OBLIGATORIOS (BUSCA ESTO ESPECÍFICAMENTE):
+                1. CÓDIGO NES (CRÍTICO): Empieza por "NES", luego 3 números, y termina con 2 LETRAS.
+                   EJEMPLOS REALES: "NES003FS", "NES001PV", "NES120PT", "NES045PE", "NES010VE".
+                   IMPORTANTE: No te comas las letras finales. Si ves "NES003", mira bien qué letras siguen.
                 
-                2. CÓDIGOS DE MATRIZ: Dos letras seguidas de números con guiones. 
-                   Ejemplos: "PE 01-11-05", "VE 02-14-10", "VT 01-01-01". 
-                   Si ves números de un solo dígito (ej. PE 1-1-1), NORMALÍZALOS a dos dígitos (PE 01-01-01).
+                2. CÓDIGO DE MATRIZ: Dos letras (PE, VE, VT, FS, PA, PE) seguidas de números con guiones.
+                   EJEMPLOS: "PE 01-11-05", "VE 01-01-01".
+                   NORMALIZACIÓN: Si ves "PE 1-1-1", conviértelo a "PE 01-01-01".
 
-                INSTRUCCIONES ADICIONALES:
-                - Escanea toda la imagen buscando etiquetas, placas metálicas o serigrafía en cuadros eléctricos.
-                - Ignora fechas, números de serie largos que no sigan estos patrones o descripciones de texto.
-                - Si un código NES está cortado, intenta reconstruirlo basándote en el formato estándar.
+                INSTRUCCIONES DE EXTRACCIÓN:
+                - Devuelve TODOS los códigos que veas que sigan estos patrones.
+                - Si el código NES está escrito como "NES 003 FS" (con espacios), júntalo todo: "NES003FS".
+                - Limpia cualquier símbolo extraño.
                 
-                SALIDA: Devuelve ÚNICAMENTE un array JSON de strings con los códigos limpios.` }
+                SALIDA: Devuelve solo un array JSON de strings con los códigos hallados.` }
             ]
         },
         config: {

@@ -55,33 +55,44 @@ export const StorageService = {
     try {
       const records: MaintenanceRecord[] = [];
       
-      // Normalización: Para el campo 'nes', quitamos el prefijo 'NES' (ej: NES001PE -> 001PE)
-      // Para 'deviceCode', lo dejamos tal cual o aseguramos mayúsculas
-      const nesSearchTerms = codes.map(c => c.toUpperCase().replace(/^NES/, ''));
-      const deviceSearchTerms = codes.map(c => c.toUpperCase());
+      // Normalización agresiva: probamos con prefijo NES y sin él para cubrir cualquier formato en DB
+      const nesSearchTerms = codes.flatMap(c => {
+        const up = c.toUpperCase().replace(/\s/g, '');
+        const clean = up.replace(/^NES/, '');
+        return [up, clean]; // Buscamos tanto NES003FS como 003FS
+      });
       
+      const deviceSearchTerms = codes.map(c => c.toUpperCase().trim());
+      
+      // Eliminar duplicados en los términos de búsqueda
+      const uniqueNes = [...new Set(nesSearchTerms)];
+      const uniqueDev = [...new Set(deviceSearchTerms)];
+
       const chunks = [];
-      for (let i = 0; i < codes.length; i += 10) {
+      // Firestore 'in' solo permite 10 o 30 elementos dependiendo de la versión/config, usamos 10 por seguridad
+      for (let i = 0; i < Math.max(uniqueNes.length, uniqueDev.length); i += 10) {
         chunks.push({
-          nes: nesSearchTerms.slice(i, i + 10),
-          dev: deviceSearchTerms.slice(i, i + 10)
+          nes: uniqueNes.slice(i, i + 10),
+          dev: uniqueDev.slice(i, i + 10)
         });
       }
 
       for (const chunk of chunks) {
-        const qNes = query(collection(db, COLLECTION_NAME), where("nes", "in", chunk.nes));
-        const qDev = query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk.dev));
+        const promises = [];
+        if (chunk.nes.length) promises.push(getDocs(query(collection(db, COLLECTION_NAME), where("nes", "in", chunk.nes))));
+        if (chunk.dev.length) promises.push(getDocs(query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk.dev))));
         
-        const [snapNes, snapDev] = await Promise.all([getDocs(qNes), getDocs(qDev)]);
+        const snapshots = await Promise.all(promises);
         
-        snapNes.forEach(doc => {
-          if (!records.find(r => r.id === doc.id)) records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+        snapshots.forEach(snap => {
+          snap.forEach(doc => {
+            if (!records.find(r => r.id === doc.id)) {
+              records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+            }
+          });
         });
-        snapDev.forEach(doc => {
-          if (!records.find(r => r.id === doc.id)) records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
-        });
         
-        trackFirebaseUsage('read', snapNes.size + snapDev.size);
+        trackFirebaseUsage('read', snapshots.reduce((acc, s) => acc + s.size, 0));
       }
       return records;
     } catch (e) { 

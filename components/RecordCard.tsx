@@ -75,14 +75,14 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
        const hasCycles = r.stroke !== undefined || r.filling !== undefined || r.emptyingB1 !== undefined || r.emptyingB2 !== undefined;
        if (!hasCycles) return null;
        return (
-        <div className="text-sm text-slate-600 dark:text-slate-400 flex justify-end items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-md border border-slate-100 dark:border-slate-800">
-            <span className="text-[10px] sm:text-xs mr-2 font-black text-slate-400 dark:text-slate-500">TIEMPOS</span>
-            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-                <span className="mr-1 text-[10px] text-slate-500">Cur:</span>{r.stroke ?? '--'} <span className="mx-1 opacity-30">|</span> 
-                <span className="mr-1 text-[10px] text-slate-500">Llen:</span>{r.filling ?? '--'} <span className="mx-1 opacity-30">|</span> 
-                <span className="mr-1 text-[10px] text-slate-500">B1:</span>{r.emptyingB1 ?? '--'} <span className="mx-1 opacity-30">|</span> 
-                <span className="mr-1 text-[10px] text-slate-500">B2:</span>{r.emptyingB2 ?? '--'}
-            </span>
+        <div className="text-sm text-slate-600 dark:text-slate-400 flex flex-wrap justify-between items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800 gap-y-1">
+            <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest shrink-0">TIEMPOS (s)</span>
+            <div className="font-bold text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs flex gap-2 overflow-hidden">
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Cur:</span>{r.stroke ?? '--'}</div>
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Llen:</span>{r.filling ?? '--'}</div>
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">B1:</span>{r.emptyingB1 ?? '--'}</div>
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">B2:</span>{r.emptyingB2 ?? '--'}</div>
+            </div>
         </div>
        )
     }
@@ -90,12 +90,12 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
        const hasVib = r.vibrationSlow !== undefined || r.vibrationFast !== undefined;
        if (!hasVib) return null;
        return (
-        <div className="text-sm text-slate-600 dark:text-slate-400 flex justify-between items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-1.5 rounded-md border border-slate-100 dark:border-slate-800">
-            <span className="text-[10px] sm:text-xs font-black text-slate-400 dark:text-slate-500">VIBRACIONES</span>
-            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-                <span className="mr-1 text-[10px] text-slate-500">Ráp:</span>{r.vibrationFast ?? '--'} <span className="mx-1 opacity-30">|</span>
-                <span className="mr-1 text-[10px] text-slate-500">Len:</span>{r.vibrationSlow ?? '--'}
-            </span>
+        <div className="text-sm text-slate-600 dark:text-slate-400 flex flex-wrap justify-between items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800 gap-y-1">
+            <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest shrink-0">VIB (m/s²)</span>
+            <div className="font-bold text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs flex gap-3">
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Ráp:</span>{r.vibrationFast ?? '--'}</div>
+                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Len:</span>{r.vibrationSlow ?? '--'}</div>
+            </div>
         </div>
        )
     }
@@ -140,15 +140,14 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
                 </div>
           )}
 
-          <div className="mb-1 flex items-center gap-2 flex-wrap">
-                 <span className="font-black text-xs sm:text-sm text-slate-800 dark:text-slate-200 uppercase tracking-tight">{item.deviceType}</span>
-                 <span className="h-4 w-px bg-slate-300 dark:bg-slate-600 hidden sm:block"></span>
+          <div className="mb-1 flex items-center justify-between flex-wrap gap-2">
+                 <span className="font-black text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 uppercase tracking-tighter">{item.deviceType}</span>
                  <div className="ml-auto">
                     {renderReadings()}
                  </div>
           </div>
           
-          <div className="mb-2">{renderExtraInfo()}</div>
+          <div className="mb-1">{renderExtraInfo()}</div>
           
           {item.notes && (
               <div className="text-xs text-slate-600 dark:text-slate-400 italic flex items-start gap-1 mt-2 bg-slate-50 dark:bg-slate-900/20 p-2 rounded border border-slate-100 dark:border-slate-800">
