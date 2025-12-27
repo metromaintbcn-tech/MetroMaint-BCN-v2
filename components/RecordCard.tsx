@@ -72,29 +72,29 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
   const renderExtraInfo = () => {
     const r = item.readings || {};
     if (item.deviceType === DeviceType.POZO_AGOTAMIENTO || item.deviceType === DeviceType.FOSA_SEPTICA) {
-       const hasCycles = r.stroke !== undefined || r.filling !== undefined || r.emptyingB1 !== undefined || r.emptyingB2 !== undefined;
+       const hasCycles = r.stroke || r.filling || r.emptyingB1 || r.emptyingB2;
        if (!hasCycles) return null;
        return (
         <div className="flex items-center justify-between mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800">
             <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 shrink-0">T :</span>
             <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm flex flex-wrap justify-end gap-x-2 sm:gap-x-3 text-right">
-                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Cur:</span>{r.stroke ?? '--'}cm</div>
-                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Llen:</span>{r.filling ?? '--'}s</div>
-                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B1:</span>{r.emptyingB1 ?? '--'}s</div>
-                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B2:</span>{r.emptyingB2 ?? '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Cur:</span>{r.stroke || '--'}cm</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Llen:</span>{r.filling || '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B1:</span>{r.emptyingB1 || '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B2:</span>{r.emptyingB2 || '--'}s</div>
             </div>
         </div>
        )
     }
     if (item.deviceType === DeviceType.VENT_ESTACION || item.deviceType === DeviceType.VENT_TUNEL) {
-       const hasVib = r.vibrationSlow !== undefined || r.vibrationFast !== undefined;
+       const hasVib = r.vibrationSlow || r.vibrationFast;
        if (!hasVib) return null;
        return (
         <div className="flex items-center justify-between mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800">
             <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 shrink-0">Vibraciones m/s²</span>
             <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm flex justify-end gap-x-4 text-right">
-                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Ráp:</span>{r.vibrationFast ?? '--'}</div>
-                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Len:</span>{r.vibrationSlow ?? '--'}</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Ráp:</span>{r.vibrationFast || '--'}</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Len:</span>{r.vibrationSlow || '--'}</div>
             </div>
         </div>
        )

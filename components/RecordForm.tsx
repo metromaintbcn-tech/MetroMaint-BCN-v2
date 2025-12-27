@@ -263,7 +263,12 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
   const handleReadingsChange = (key: keyof ConsumptionReadings, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
-      readings: { ...prev.readings, [key]: typeof value === 'boolean' ? value : parseFloat(value) || 0 }
+      readings: { 
+        ...prev.readings, 
+        [key]: typeof value === 'boolean' 
+          ? value 
+          : (value === '' ? null : parseFloat(value as string))
+      }
     }));
   };
 
@@ -304,7 +309,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                       <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">Fusibles (A)</label>
                       <input 
                         type="number" inputMode="numeric" placeholder="A"
-                        value={formData.readings?.[`fuses${suffix}` as keyof ConsumptionReadings] as number || ''} 
+                        value={formData.readings?.[`fuses${suffix}` as keyof ConsumptionReadings] ?? ''} 
                         onChange={(e) => handleReadingsChange(`fuses${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                         className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-100" 
                       />
@@ -315,13 +320,13 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                           <div className="flex gap-1">
                               <input 
                                 type="number" step="0.1" placeholder="Min"
-                                value={formData.readings?.[`thermalMin${suffix}` as keyof ConsumptionReadings] as number || ''} 
+                                value={formData.readings?.[`thermalMin${suffix}` as keyof ConsumptionReadings] ?? ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMin${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                                 className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
                               <input 
                                 type="number" step="0.1" placeholder="Max"
-                                value={formData.readings?.[`thermalMax${suffix}` as keyof ConsumptionReadings] as number || ''} 
+                                value={formData.readings?.[`thermalMax${suffix}` as keyof ConsumptionReadings] ?? ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMax${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                                 className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
@@ -334,7 +339,7 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                       </label>
                       <input 
                         type="number" step="0.1" placeholder={unitRegulated}
-                        value={formData.readings?.[`regulated${suffix}` as keyof ConsumptionReadings] as number || ''} 
+                        value={formData.readings?.[`regulated${suffix}` as keyof ConsumptionReadings] ?? ''} 
                         onChange={(e) => handleReadingsChange(`regulated${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                         className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded font-bold text-blue-700 dark:text-blue-400" 
                       />
@@ -420,16 +425,16 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
             <label className="block text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2 flex items-center gap-2"><Zap size={16} className="text-yellow-500" /> Consumos</label>
             {isPump ? (
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs text-gray-500 mb-1 block">Bomba 1</label><input type="number" step="0.1" value={formData.readings?.pump1 || ''} onChange={(e) => handleReadingsChange('pump1', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
-                <div><label className="text-xs text-gray-500 mb-1 block">Bomba 2</label><input type="number" step="0.1" value={formData.readings?.pump2 || ''} onChange={(e) => handleReadingsChange('pump2', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
+                <div><label className="text-xs text-gray-500 mb-1 block">Bomba 1</label><input type="number" step="0.1" value={formData.readings?.pump1 ?? ''} onChange={(e) => handleReadingsChange('pump1', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
+                <div><label className="text-xs text-gray-500 mb-1 block">Bomba 2</label><input type="number" step="0.1" value={formData.readings?.pump2 ?? ''} onChange={(e) => handleReadingsChange('pump2', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
               </div>
             ) : isVent ? (
               <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs text-gray-500 mb-1 block">Velocidad Rápida</label><input type="number" step="0.1" value={formData.readings?.speedFast || ''} onChange={(e) => handleReadingsChange('speedFast', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
-                <div><label className="text-xs text-gray-500 mb-1 block">Velocidad Lenta</label><input type="number" step="0.1" value={formData.readings?.speedSlow || ''} onChange={(e) => handleReadingsChange('speedSlow', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
+                <div><label className="text-xs text-gray-500 mb-1 block">Velocidad Rápida</label><input type="number" step="0.1" value={formData.readings?.speedFast ?? ''} onChange={(e) => handleReadingsChange('speedFast', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
+                <div><label className="text-xs text-gray-500 mb-1 block">Velocidad Lenta</label><input type="number" step="0.1" value={formData.readings?.speedSlow ?? ''} onChange={(e) => handleReadingsChange('speedSlow', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
               </div>
             ) : (
-              <div><label className="text-xs text-gray-500 mb-1 block">Lectura General</label><input type="number" step="0.1" value={formData.readings?.generic || ''} onChange={(e) => handleReadingsChange('generic', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
+              <div><label className="text-xs text-gray-500 mb-1 block">Lectura General</label><input type="number" step="0.1" value={formData.readings?.generic ?? ''} onChange={(e) => handleReadingsChange('generic', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" placeholder="0.0" /></div>
             )}
           </div>
 
@@ -441,15 +446,15 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                 </label>
                 {isPump ? (
                     <div className="grid grid-cols-4 gap-2">
-                        <div><label className="text-xs text-gray-500 mb-1 block">Cursa (cm)</label><input type="number" value={formData.readings?.stroke || ''} onChange={(e) => handleReadingsChange('stroke', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
-                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Llenado<button type="button" onClick={() => openTimeTool('filling')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.filling || ''} onChange={(e) => handleReadingsChange('filling', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
-                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Vcdo.B1<button type="button" onClick={() => openTimeTool('emptyingB1')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.emptyingB1 || ''} onChange={(e) => handleReadingsChange('emptyingB1', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
-                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Vcdo.B2<button type="button" onClick={() => openTimeTool('emptyingB2')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.emptyingB2 || ''} onChange={(e) => handleReadingsChange('emptyingB2', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div><label className="text-xs text-gray-500 mb-1 block">Cursa (cm)</label><input type="number" value={formData.readings?.stroke ?? ''} onChange={(e) => handleReadingsChange('stroke', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Llenado<button type="button" onClick={() => openTimeTool('filling')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.filling ?? ''} onChange={(e) => handleReadingsChange('filling', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Vcdo.B1<button type="button" onClick={() => openTimeTool('emptyingB1')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.emptyingB1 ?? ''} onChange={(e) => handleReadingsChange('emptyingB1', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Vcdo.B2<button type="button" onClick={() => openTimeTool('emptyingB2')} className="text-blue-500"><Watch size={14}/></button></label><input type="number" value={formData.readings?.emptyingB2 ?? ''} onChange={(e) => handleReadingsChange('emptyingB2', e.target.value)} className="w-full p-2 text-sm bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 gap-2">
-                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Rápida<button type="button" onClick={() => openVibTool('vibrationFast')} className="text-purple-500"><Waves size={14}/></button></label><input type="number" step="0.1" value={formData.readings?.vibrationFast || ''} onChange={(e) => handleReadingsChange('vibrationFast', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
-                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Lenta<button type="button" onClick={() => openVibTool('vibrationSlow')} className="text-purple-500"><Waves size={14}/></button></label><input type="number" step="0.1" value={formData.readings?.vibrationSlow || ''} onChange={(e) => handleReadingsChange('vibrationSlow', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Rápida<button type="button" onClick={() => openVibTool('vibrationFast')} className="text-purple-500"><Waves size={14}/></button></label><input type="number" step="0.1" value={formData.readings?.vibrationFast ?? ''} onChange={(e) => handleReadingsChange('vibrationFast', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
+                        <div className="relative"><label className="text-xs text-gray-500 mb-1 block flex justify-between">Lenta<button type="button" onClick={() => openVibTool('vibrationSlow')} className="text-purple-500"><Waves size={14}/></button></label><input type="number" step="0.1" value={formData.readings?.vibrationSlow ?? ''} onChange={(e) => handleReadingsChange('vibrationSlow', e.target.value)} className="w-full p-2.5 bg-white dark:bg-black border border-gray-300 dark:border-gray-600 rounded-lg text-black dark:text-white" /></div>
                     </div>
                 )}
              </div>
