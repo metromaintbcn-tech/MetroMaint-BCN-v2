@@ -82,24 +82,20 @@ export const GeminiService = {
         contents: {
             parts: [
                 { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-                { text: `ERES UN EXPERTO EN MANTENIMIENTO DE METRO BARCELONA. ANALIZA ESTA PLACA TÉCNICA O ETIQUETA.
+                { text: `ERES UN EXPERTO EN DIGITALIZACIÓN DE PLACAS TÉCNICAS DE METRO BARCELONA. 
                 
-                OBJETIVO: Extraer CADA CÓDIGO de identificación.
+                OBJETIVO: Extraer CADA CÓDIGO de identificación de equipo de la imagen.
                 
-                PATRONES OBLIGATORIOS (BUSCA ESTO ESPECÍFICAMENTE):
-                1. CÓDIGO NES (CRÍTICO): Empieza por "NES", luego 3 números, y termina con 2 LETRAS.
-                   EJEMPLOS REALES: "NES003FS", "NES001PV", "NES120PT", "NES045PE", "NES010VE".
-                   IMPORTANTE: No te comas las letras finales. Si ves "NES003", mira bien qué letras siguen.
+                REGLAS CRÍTICAS PARA CÓDIGOS NES:
+                - Estructura: Prefijo "NES" + 3 dígitos + 2 letras finales.
+                - EJEMPLOS: "NES003FS", "NES120PT", "NES001PV", "NES045PE".
+                - ¡IMPORTANTE!: A veces el texto está separado por espacios (ej. "NES 003 FS" o "NES003 FS"). Debes JUNTAR TODO en un solo string: "NES003FS".
+                - ¡ALERTA!: No ignores nunca las dos letras finales (FS, PT, PV, PE, VT, VE). Son la parte más importante. Búscalas justo después de los números.
                 
-                2. CÓDIGO DE MATRIZ: Dos letras (PE, VE, VT, FS, PA, PE) seguidas de números con guiones.
-                   EJEMPLOS: "PE 01-11-05", "VE 01-01-01".
-                   NORMALIZACIÓN: Si ves "PE 1-1-1", conviértelo a "PE 01-01-01".
+                REGLAS PARA CÓDIGOS DE MATRIZ:
+                - Estructura: 2 letras (PE, VE, VT, FS, etc.) + espacio + números con guiones.
+                - Ejemplo: "PE 01-11-05". Si ves "PE 1-1-1", conviértelo a "PE 01-01-01".
 
-                INSTRUCCIONES DE EXTRACCIÓN:
-                - Devuelve TODOS los códigos que veas que sigan estos patrones.
-                - Si el código NES está escrito como "NES 003 FS" (con espacios), júntalo todo: "NES003FS".
-                - Limpia cualquier símbolo extraño.
-                
                 SALIDA: Devuelve solo un array JSON de strings con los códigos hallados.` }
             ]
         },

@@ -75,13 +75,13 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
        const hasCycles = r.stroke !== undefined || r.filling !== undefined || r.emptyingB1 !== undefined || r.emptyingB2 !== undefined;
        if (!hasCycles) return null;
        return (
-        <div className="text-sm text-slate-600 dark:text-slate-400 flex flex-wrap justify-between items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800 gap-y-1">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest shrink-0">TIEMPOS (s)</span>
-            <div className="font-bold text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs flex gap-2 overflow-hidden">
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Cur:</span>{r.stroke ?? '--'}</div>
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Llen:</span>{r.filling ?? '--'}</div>
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">B1:</span>{r.emptyingB1 ?? '--'}</div>
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">B2:</span>{r.emptyingB2 ?? '--'}</div>
+        <div className="flex items-center justify-between mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800">
+            <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 shrink-0">T:</span>
+            <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm flex flex-wrap justify-end gap-x-2 sm:gap-x-3 text-right">
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Cur:</span>{r.stroke ?? '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">Llen:</span>{r.filling ?? '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B1:</span>{r.emptyingB1 ?? '--'}s</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-0.5 text-[10px] text-slate-400 font-normal uppercase">B2:</span>{r.emptyingB2 ?? '--'}s</div>
             </div>
         </div>
        )
@@ -90,11 +90,11 @@ export const RecordCard: React.FC<RecordCardProps> = ({ item, onEdit, onDelete, 
        const hasVib = r.vibrationSlow !== undefined || r.vibrationFast !== undefined;
        if (!hasVib) return null;
        return (
-        <div className="text-sm text-slate-600 dark:text-slate-400 flex flex-wrap justify-between items-center mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800 gap-y-1">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-500 uppercase tracking-widest shrink-0">VIB (m/s²)</span>
-            <div className="font-bold text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs flex gap-3">
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Ráp:</span>{r.vibrationFast ?? '--'}</div>
-                <div className="flex items-center"><span className="mr-1 text-[9px] text-slate-500 font-normal">Len:</span>{r.vibrationSlow ?? '--'}</div>
+        <div className="flex items-center justify-between mt-2 bg-slate-50 dark:bg-slate-900/40 p-2 rounded-md border border-slate-100 dark:border-slate-800">
+            <span className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 shrink-0">Vibraciones m/s²</span>
+            <div className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm flex justify-end gap-x-4 text-right">
+                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Ráp:</span>{r.vibrationFast ?? '--'}</div>
+                <div className="flex items-center whitespace-nowrap"><span className="mr-1 text-[10px] text-slate-400 font-normal uppercase">Len:</span>{r.vibrationSlow ?? '--'}</div>
             </div>
         </div>
        )
