@@ -9,10 +9,12 @@ import {
   Plus, Search, Menu, X, Moon, Sun,
   AlertTriangle, History, Lock, Loader2, 
   Camera, Check, List as ListIcon,
-  Download, PowerOff, LayoutDashboard, ClipboardList, Trash, StickyNote
+  Download, PowerOff, LayoutDashboard, ClipboardList, Trash, StickyNote,
+  ChevronLeft, ChevronRight, ArrowRight
 } from 'lucide-react';
 
 const JOURNAL_STORAGE_KEY = 'metro_journal_results';
+const RESULTS_PER_PAGE = 5;
 
 export default function App() {
   const [searchResults, setSearchResults] = useState<MaintenanceRecord[]>([]);
@@ -28,6 +30,10 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
   // Estados para Jornada con Persistencia Inmediata
   const [journalSearchTerm, setJournalSearchTerm] = useState('');
@@ -71,11 +77,12 @@ export default function App() {
         setIsSearching(true);
         const results = await StorageService.searchByText(searchTerm);
         setSearchResults(results);
+        setCurrentPage(1); // Reset a la primera página al buscar
         setIsSearching(false);
       } else {
         setSearchResults([]);
       }
-    }, 300); 
+    }, 400); 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm]);
 
@@ -109,7 +116,7 @@ export default function App() {
         setJournalResults(prev => {
           const existingIds = new Set(prev.map(r => r.id));
           const newOnes = records.filter(r => !existingIds.has(r.id));
-          return [...prev, ...newOnes];
+          return [...prev, ...newOnes].sort((a, b) => a.deviceCode.localeCompare(b.deviceCode));
         });
         if (!manualCodes) setJournalSearchTerm('');
         showToast(`Añadidos ${records.length} equipos`);
@@ -133,6 +140,7 @@ export default function App() {
         if (codes && codes.length > 0) {
           const records = await StorageService.getByCodes(codes);
           setSearchResults(records);
+          setCurrentPage(1);
           setSearchTerm('');
           showToast(`Encontrados ${records.length} equipos`);
         } else {
@@ -172,19 +180,35 @@ export default function App() {
     const match = deviceCode.match(/(\d{1,2})/);
     const num = match ? parseInt(match[0], 10) : -1;
     switch (num) {
-        case 1: return 'border-l-red-600';     
-        case 2: return 'border-l-purple-600';  
-        case 3: return 'border-l-green-600';   
-        case 4: return 'border-l-yellow-400';  
-        case 5: return 'border-l-blue-600';     
-        case 9: return 'border-l-orange-400'; 
-        case 10: return 'border-l-sky-400';    
-        case 11: return 'border-l-lime-400';   
+        case 1: return 'border-l-red-600 dark:border-l-red-500';     
+        case 2: return 'border-l-purple-600 dark:border-l-purple-500';  
+        case 3: return 'border-l-green-600 dark:border-l-green-500';   
+        case 4: return 'border-l-yellow-400 dark:border-l-yellow-400';  
+        case 5: return 'border-l-blue-600 dark:border-l-blue-500';     
+        case 9: return 'border-l-orange-400 dark:border-l-orange-400'; 
+        case 10: return 'border-l-sky-400 dark:border-l-sky-400';    
+        case 11: return 'border-l-lime-400 dark:border-l-lime-400';   
         default: return 'border-l-slate-300 dark:border-l-slate-600';   
     }
   };
 
   const isSearchActive = searchTerm.length >= 2 || searchResults.length > 0;
+
+  // Cálculo de Paginación
+  const totalPages = Math.ceil(searchResults.length / RESULTS_PER_PAGE);
+  const currentResults = searchResults.slice(
+    (currentPage - 1) * RESULTS_PER_PAGE,
+    currentPage * RESULTS_PER_PAGE
+  );
+
+  const handlePageChange = (newPage: number) => {
+    setIsPageTransitioning(true);
+    setTimeout(() => {
+      setCurrentPage(newPage);
+      setIsPageTransitioning(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 200);
+  };
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -226,7 +250,7 @@ export default function App() {
                   <button onClick={() => setDevMode(false)} className="w-full py-2 bg-red-900/20 text-red-500 rounded-lg text-xs font-bold border border-red-900/30 flex items-center justify-center gap-2"><PowerOff size={16}/> Salir Admin</button>
                 </div>
               )}
-              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.8.7 • Ultra-OCR</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
+              <div className="flex justify-between items-center opacity-50 px-2 mt-4"><p className="text-[10px]">v1.9.0 • Ultra-OCR • PatinatedResults</p><button onClick={() => setShowPinInput(true)}><Lock size={12}/></button></div>
             </div>
           )}
         </header>
@@ -253,7 +277,7 @@ export default function App() {
                     {incident.notes && (
                       <div className="mt-2 text-[10px] text-slate-600 dark:text-slate-400 italic line-clamp-2 leading-tight flex items-start gap-1">
                         <StickyNote size={10} className="shrink-0 mt-0.5 opacity-60" />
-                        <span>{incident.notes}</span>
+                        <span className="truncate">{incident.notes}</span>
                       </div>
                     )}
 
@@ -273,13 +297,13 @@ export default function App() {
                 <input 
                   type="text" 
                   className="block w-full pl-12 pr-12 py-5 bg-white dark:bg-slate-800 rounded-2xl text-lg shadow-xl text-slate-950 dark:text-white font-bold placeholder:text-slate-400 border border-slate-200 dark:border-slate-700 outline-none focus:ring-4 focus:ring-red-500/10"
-                  placeholder="Ej: Santa Rosa, NES001, PE 01..." 
+                  placeholder="Ej: Clot vt, 038PE, PE 01-11-02" 
                   value={searchTerm} 
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 {(isSearching || isScanning) && <div className="absolute right-12 top-1/2 -translate-y-1/2"><Loader2 className="animate-spin text-red-600" size={20}/></div>}
                 {isSearchActive && (
-                  <button onClick={() => { setSearchTerm(''); setSearchResults([]); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-600"><X size={24} /></button>
+                  <button onClick={() => { setSearchTerm(''); setSearchResults([]); setCurrentPage(1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-red-600"><X size={24} /></button>
                 )}
               </div>
               <div className="text-center mt-3 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
@@ -320,11 +344,46 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4 max-w-2xl mx-auto px-2">
+                <div className={`space-y-4 max-w-2xl mx-auto px-2 transition-all duration-300 ${isPageTransitioning ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0'}`}>
                   {searchResults.length === 0 && !isSearching ? (
                     <div className="p-12 text-center text-slate-500 font-bold bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-300">No se encontraron coincidencias exactas</div>
                   ) : (
-                    searchResults.map(item => <RecordCard key={item.id} item={item} onEdit={(r) => { setEditingRecord(r); setView('EDIT'); }} onDelete={(r) => setRecordToDelete(r)} formatDate={(d) => new Date(d).toLocaleString()} />)
+                    <>
+                      {currentResults.map(item => <RecordCard key={item.id} item={item} onEdit={(r) => { setEditingRecord(r); setView('EDIT'); }} onDelete={(r) => setRecordToDelete(r)} formatDate={(d) => new Date(d).toLocaleString()} />)}
+                      
+                      {/* Paginación Mejorada */}
+                      {totalPages > 1 && (
+                        <div className="flex flex-col items-center gap-4 pt-8 pb-12">
+                          <div className="flex items-center justify-center gap-1 mb-2">
+                             {Array.from({ length: totalPages }).map((_, i) => (
+                               <div 
+                                 key={i} 
+                                 className={`h-1.5 transition-all duration-300 rounded-full ${currentPage === i + 1 ? 'w-8 bg-red-600' : 'w-1.5 bg-slate-300 dark:bg-slate-700'}`}
+                               />
+                             ))}
+                          </div>
+                          <div className="flex items-center gap-4 w-full">
+                            <button 
+                              disabled={currentPage === 1 || isPageTransitioning}
+                              onClick={() => handlePageChange(currentPage - 1)}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-4 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 disabled:opacity-30 disabled:grayscale font-black text-[10px] uppercase tracking-widest text-slate-700 dark:text-slate-200 active:scale-95 transition-all"
+                            >
+                              <ChevronLeft size={18} /> Anterior
+                            </button>
+                            <button 
+                              disabled={currentPage === totalPages || isPageTransitioning}
+                              onClick={() => handlePageChange(currentPage + 1)}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-4 bg-red-600 dark:bg-red-600 rounded-2xl shadow-xl shadow-red-500/20 border border-red-500 disabled:opacity-30 disabled:grayscale font-black text-[10px] uppercase tracking-widest text-white active:scale-95 transition-all"
+                            >
+                              Siguiente <ChevronRight size={18} />
+                            </button>
+                          </div>
+                          <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">
+                            Viendo {currentResults.length} de {searchResults.length} resultados
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

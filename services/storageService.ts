@@ -54,36 +54,26 @@ export const StorageService = {
     if (!codes.length) return [];
     try {
       const records: MaintenanceRecord[] = [];
-      
-      // Normalización agresiva: probamos con prefijo NES y sin él para cubrir cualquier formato en DB
       const nesSearchTerms = codes.flatMap(c => {
         const up = c.toUpperCase().replace(/\s/g, '');
         const clean = up.replace(/^NES/, '');
-        return [up, clean]; // Buscamos tanto NES003FS como 003FS
+        return [up, clean];
       });
-      
       const deviceSearchTerms = codes.map(c => c.toUpperCase().trim());
-      
-      // Eliminar duplicados en los términos de búsqueda
       const uniqueNes = [...new Set(nesSearchTerms)];
       const uniqueDev = [...new Set(deviceSearchTerms)];
-
       const chunks = [];
-      // Firestore 'in' solo permite 10 o 30 elementos dependiendo de la versión/config, usamos 10 por seguridad
       for (let i = 0; i < Math.max(uniqueNes.length, uniqueDev.length); i += 10) {
         chunks.push({
           nes: uniqueNes.slice(i, i + 10),
           dev: uniqueDev.slice(i, i + 10)
         });
       }
-
       for (const chunk of chunks) {
         const promises = [];
         if (chunk.nes.length) promises.push(getDocs(query(collection(db, COLLECTION_NAME), where("nes", "in", chunk.nes))));
         if (chunk.dev.length) promises.push(getDocs(query(collection(db, COLLECTION_NAME), where("deviceCode", "in", chunk.dev))));
-        
         const snapshots = await Promise.all(promises);
-        
         snapshots.forEach(snap => {
           snap.forEach(doc => {
             if (!records.find(r => r.id === doc.id)) {
@@ -91,53 +81,98 @@ export const StorageService = {
             }
           });
         });
-        
         trackFirebaseUsage('read', snapshots.reduce((acc, s) => acc + s.size, 0));
       }
-      return records;
-    } catch (e) { 
-      console.error("Storage Error:", e);
-      return []; 
-    }
+      return records.sort((a, b) => a.deviceCode.localeCompare(b.deviceCode));
+    } catch (e) { return []; }
   },
 
   searchByText: async (text: string): Promise<MaintenanceRecord[]> => {
     if (text.length < 2) return [];
     try {
-      const searchRaw = text.trim();
-      const searchUpper = searchRaw.toUpperCase();
+      const originalInput = text.trim();
+      const searchUpper = originalInput.toUpperCase();
+      
+      // Intentar extraer el prefijo para filtrado inteligente
+      const typePrefixes = ['PE', 'VE', 'VT', 'FS', 'PA'];
+      let detectedPrefix = '';
+      let secondaryTerm = '';
+      
+      const parts = originalInput.split(/\s+/);
+      if (parts.length > 0) {
+        const firstPart = parts[0].toUpperCase();
+        if (typePrefixes.includes(firstPart)) {
+          detectedPrefix = firstPart === 'PA' ? 'PE' : firstPart;
+          secondaryTerm = parts.slice(1).join(' ').trim();
+        } else {
+          // Si el prefijo está al final (ej: "Clot VT")
+          const lastPart = parts[parts.length - 1].toUpperCase();
+          if (typePrefixes.includes(lastPart)) {
+            detectedPrefix = lastPart === 'PA' ? 'PE' : lastPart;
+            secondaryTerm = parts.slice(0, -1).join(' ').trim();
+          }
+        }
+      }
+
       const toTitleCase = (str: string) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
-      const searchTitle = toTitleCase(searchRaw);
-      const searchNes = searchUpper.replace(/^NES/, '');
-      const SURGICAL_LIMIT = 5;
+      const termTitle = toTitleCase(secondaryTerm || originalInput);
+      const termUpper = (secondaryTerm || originalInput).toUpperCase();
+      const searchNes = termUpper.replace(/^NES/, '');
+      
+      const FETCH_LIMIT = 50;
+      const coll = collection(db, COLLECTION_NAME);
 
-      const qCode = query(collection(db, COLLECTION_NAME), orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(SURGICAL_LIMIT));
-      const qNes = query(collection(db, COLLECTION_NAME), orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(SURGICAL_LIMIT));
-      const qStationTitle = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchTitle), endAt(searchTitle + '\uf8ff'), limit(SURGICAL_LIMIT));
-      const qStationUpper = query(collection(db, COLLECTION_NAME), orderBy("station"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(SURGICAL_LIMIT));
+      // QUERIES
+      // 1. Buscar por código de equipo empezando por el input original completo (ej: "VE 01")
+      const qFullCode = query(coll, orderBy("deviceCode"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(FETCH_LIMIT));
+      
+      // 2. Buscar por Estación empezando por el input o el término secundario
+      const qStationTitle = query(coll, orderBy("station"), startAt(termTitle), endAt(termTitle + '\uf8ff'), limit(FETCH_LIMIT));
+      const qStationUpper = query(coll, orderBy("station"), startAt(searchUpper), endAt(searchUpper + '\uf8ff'), limit(FETCH_LIMIT));
+      
+      // 3. Buscar por NES
+      const qNes = query(coll, orderBy("nes"), startAt(searchNes), endAt(searchNes + '\uf8ff'), limit(FETCH_LIMIT));
 
-      const [sCode, sNes, sTitle, sUpper] = await Promise.all([
-        getDocs(qCode), 
-        getDocs(qNes), 
+      const [sFullCode, sStationTitle, sStationUpper, sNes] = await Promise.all([
+        getDocs(qFullCode), 
         getDocs(qStationTitle),
-        getDocs(qStationUpper)
+        getDocs(qStationUpper),
+        getDocs(qNes)
       ]);
       
-      const records: MaintenanceRecord[] = [];
+      let records: MaintenanceRecord[] = [];
       const ids = new Set();
       
-      [sCode, sNes, sTitle, sUpper].forEach(snap => {
-        snap.forEach(doc => {
+      const processSnap = (snap: any) => {
+        snap.forEach((doc: any) => {
           if (!ids.has(doc.id)) {
-            ids.add(doc.id);
-            records.push({ id: doc.id, ...doc.data() } as MaintenanceRecord);
+            const data = doc.data() as MaintenanceRecord;
+            const item = { id: doc.id, ...data };
+            
+            // Si el usuario incluyó un prefijo explícito (ej: "PE"), filtramos
+            if (detectedPrefix) {
+               if (item.deviceCode?.toUpperCase().startsWith(detectedPrefix)) {
+                 ids.add(doc.id);
+                 records.push(item);
+               }
+            } else {
+              ids.add(doc.id);
+              records.push(item);
+            }
           }
         });
-      });
+      };
 
-      trackFirebaseUsage('read', sCode.size + sNes.size + sTitle.size + sUpper.size);
-      return records.slice(0, 5);
-    } catch (e) { return []; }
+      [sFullCode, sStationTitle, sStationUpper, sNes].forEach(processSnap);
+
+      trackFirebaseUsage('read', sFullCode.size + sStationTitle.size + sStationUpper.size + sNes.size);
+      
+      // Ordenar de menor a mayor por código
+      return records.sort((a, b) => a.deviceCode.localeCompare(b.deviceCode));
+    } catch (e) { 
+      console.error("Search error:", e);
+      return []; 
+    }
   },
 
   subscribeToIncidents: (onUpdate: (records: MaintenanceRecord[]) => void): Unsubscribe => {
@@ -146,7 +181,7 @@ export const StorageService = {
       const data: MaintenanceRecord[] = [];
       snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() } as MaintenanceRecord));
       trackFirebaseUsage('read', snapshot.docChanges().length || snapshot.size);
-      onUpdate(data);
+      onUpdate(data.sort((a, b) => a.deviceCode.localeCompare(b.deviceCode)));
     });
   },
 
@@ -162,7 +197,7 @@ export const StorageService = {
 
   getAll: async (): Promise<MaintenanceRecord[]> => {
     try {
-      const q = query(collection(db, COLLECTION_NAME), orderBy("date", "desc")); 
+      const q = query(collection(db, COLLECTION_NAME), orderBy("deviceCode", "asc")); 
       const querySnapshot = await getDocs(q);
       trackFirebaseUsage('read', querySnapshot.size);
       const data: MaintenanceRecord[] = [];
