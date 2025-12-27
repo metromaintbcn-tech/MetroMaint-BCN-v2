@@ -9,7 +9,7 @@ import {
   Plus, Search, Menu, X, Moon, Sun,
   AlertTriangle, History, Lock, Loader2, 
   Camera, Check, List as ListIcon,
-  Download, PowerOff, LayoutDashboard, ClipboardList, Trash
+  Download, PowerOff, LayoutDashboard, ClipboardList, Trash, StickyNote
 } from 'lucide-react';
 
 const JOURNAL_STORAGE_KEY = 'metro_journal_results';
@@ -167,6 +167,23 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const getLineColorClass = (deviceCode: string | undefined) => {
+    if (!deviceCode) return 'border-l-slate-300 dark:border-l-slate-600'; 
+    const match = deviceCode.match(/(\d{1,2})/);
+    const num = match ? parseInt(match[0], 10) : -1;
+    switch (num) {
+        case 1: return 'border-l-red-600';     
+        case 2: return 'border-l-purple-600';  
+        case 3: return 'border-l-green-600';   
+        case 4: return 'border-l-yellow-400';  
+        case 5: return 'border-l-blue-600';     
+        case 9: return 'border-l-orange-400'; 
+        case 10: return 'border-l-sky-400';    
+        case 11: return 'border-l-lime-400';   
+        default: return 'border-l-slate-300 dark:border-l-slate-600';   
+    }
+  };
+
   const isSearchActive = searchTerm.length >= 2 || searchResults.length > 0;
 
   return (
@@ -220,10 +237,29 @@ export default function App() {
               <div className="flex items-center gap-2 mb-3 px-1 text-amber-600 font-black uppercase text-sm tracking-tight"><AlertTriangle size={20} /> Incidencias Activas ({activeIncidents.length})</div>
               <div className="flex overflow-x-auto pb-4 gap-3 no-scrollbar snap-x">
                 {activeIncidents.map(incident => (
-                  <div key={incident.id} onClick={() => { setEditingRecord(incident); setView('EDIT'); }} className="flex-shrink-0 w-[260px] bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-l-amber-500 shadow-md snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors">
-                    <div className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase mb-1">{incident.deviceCode}</div>
-                    <div className="font-black text-slate-950 dark:text-white text-sm truncate">{incident.station}</div>
-                    <div className="text-[10px] text-slate-500 mt-2 flex items-center gap-1"><History size={10}/> {new Date(incident.date).toLocaleDateString()}</div>
+                  <div 
+                    key={incident.id} 
+                    onClick={() => { setEditingRecord(incident); setView('EDIT'); }} 
+                    className={`flex-shrink-0 w-[260px] bg-white dark:bg-slate-800 p-3 rounded-xl shadow-md snap-start cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-colors border-l-[6px] ${getLineColorClass(incident.deviceCode)}`}
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-tighter truncate max-w-[140px]">{incident.deviceCode}</div>
+                      <div className="bg-amber-100 dark:bg-amber-900/40 p-0.5 rounded">
+                        <AlertTriangle size={12} className="text-amber-600 dark:text-amber-400" />
+                      </div>
+                    </div>
+                    <div className="font-black text-slate-950 dark:text-white text-sm truncate leading-tight">{incident.station}</div>
+                    
+                    {incident.notes && (
+                      <div className="mt-2 text-[10px] text-slate-600 dark:text-slate-400 italic line-clamp-2 leading-tight flex items-start gap-1">
+                        <StickyNote size={10} className="shrink-0 mt-0.5 opacity-60" />
+                        <span>{incident.notes}</span>
+                      </div>
+                    )}
+
+                    <div className="text-[10px] text-slate-400 font-bold mt-2 flex items-center gap-1">
+                      <History size={10}/> {new Date(incident.date).toLocaleDateString()}
+                    </div>
                   </div>
                 ))}
               </div>
