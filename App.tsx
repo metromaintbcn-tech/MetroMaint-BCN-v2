@@ -91,12 +91,17 @@ export default function App() {
       await StorageService.save(record);
       setTotalEquipments(await StorageService.getTotalCount());
       
+      // Fix: Determine return view by checking if the record was in the journal
+      const wasInJournal = journalResults.some(r => r.id === record.id);
+
       // Si estamos en Jornada, actualizar la lista de Jornada también
-      if (journalResults.some(r => r.id === record.id)) {
+      if (wasInJournal) {
         setJournalResults(prev => prev.map(r => r.id === record.id ? record : r));
+        setView('JOURNAL');
+      } else {
+        setView('LIST');
       }
 
-      setView(view === 'JOURNAL' ? 'JOURNAL' : 'LIST');
       setEditingRecord(null);
       setSearchTerm('');
       showToast('Sincronizado');
@@ -395,14 +400,14 @@ export default function App() {
               <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <button onClick={() => setView('LIST')} className="self-start flex items-center gap-2 text-slate-500 font-bold uppercase text-xs tracking-widest"><History size={16}/> Volver</button>
                 <div className="flex flex-col items-center">
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Menú Jornada</h2>
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Mi Jornada</h2>
                   <span className="text-[10px] text-slate-400 font-bold uppercase">{journalResults.length} Equipos en lista</span>
                 </div>
                 <button onClick={() => { if(confirm('¿Limpiar la lista de jornada?')) setJournalResults([]); }} className="self-end text-red-500 font-bold uppercase text-xs flex items-center gap-1"><Trash size={14}/> Limpiar</button>
               </div>
 
               <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 mb-8">
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest">Añadir Equipos (Comas o Escáner)</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 tracking-widest">Añadir Equipos (Entre comas o Escáner)</label>
                 <div className="flex flex-col gap-2">
                   <input 
                     type="text" 
@@ -439,7 +444,8 @@ export default function App() {
           )}
 
           {view === 'ADD' && <RecordForm existingRecords={allData} onSave={handleSave} onCancel={() => setView('LIST')} />}
-          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={allData} onSave={handleSave} onCancel={() => setView(view === 'JOURNAL' ? 'JOURNAL' : 'LIST')} />}
+          {/* Fix: use journalResults check for return view instead of 'view === 'JOURNAL'' which is dead code here */}
+          {view === 'EDIT' && editingRecord && <RecordForm initialData={editingRecord} existingRecords={allData} onSave={handleSave} onCancel={() => setView(journalResults.some(r => r.id === editingRecord.id) ? 'JOURNAL' : 'LIST')} />}
         </main>
 
         {toast && (

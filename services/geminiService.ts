@@ -44,32 +44,6 @@ const trackUsage = () => {
 export const GeminiService = {
   getUsage: () => getUsageData(),
 
-  analyzeDataAndProfile: async (records: MaintenanceRecord[], query: string) => {
-    try {
-      const usage = getUsageData();
-      if (usage.count >= DAILY_LIMIT) return "🚫 **LÍMITE ALCANZADO**\nReintento mañana 9:00 AM.";
-
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const cleanRecords = records.slice(0, 3000).map(r => ({
-        id: r.id, st: r.station, nes: r.nes, dev: r.deviceCode, type: r.deviceType, stat: r.status, reads: r.readings
-      }));
-
-      const prompt = `Actúa como ingeniero de Metro BCN. Datos: ${JSON.stringify(cleanRecords)}. Consulta: "${query}". Responde técnico y conciso. Usa [LINK:id|label] para equipos.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-      });
-
-      trackUsage(); 
-      return response.text || "Sin respuesta.";
-    } catch (error: any) {
-      console.error("AI Error:", error);
-      return `⚠️ Error: ${error.message || 'Sin conexión a IA'}.`;
-    }
-  },
-
   extractCodesFromDocument: async (base64Image: string): Promise<string[]> => {
     try {
       const usage = getUsageData();
@@ -114,6 +88,43 @@ export const GeminiService = {
       return result;
     } catch (error: any) {
         throw new Error("Fallo en escáner: " + error.message);
+    }
+  },
+
+  // Fix: Added missing analyzeDataAndProfile method for AI Assistant
+  analyzeDataAndProfile: async (data: MaintenanceRecord[], query: string): Promise<string> => {
+    try {
+      const usage = getUsageData();
+      if (usage.count >= DAILY_LIMIT) throw new Error("LÍMITE DIARIO DE IA ALCANZADO.");
+
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Analiza estos datos de mantenimiento de Metro Barcelona y responde a la consulta: "${query}"
+        
+        DATOS ACTUALES:
+        ${JSON.stringify(data.map(r => ({
+          id: r.id,
+          st: r.station,
+          nes: r.nes,
+          code: r.deviceCode,
+          type: r.deviceType,
+          status: r.status,
+          notes: r.notes
+        })))}
+        
+        FORMATO DE RESPUESTA:
+        - Responde de forma técnica y profesional en español.
+        - Si mencionas un equipo, usa OBLIGATORIAMENTE este formato para enlazarlo: [LINK:ID|ESTACIÓN - NES (CÓDIGO)].
+        - Identifica anomalías o equipos con incidencias si se solicita.`,
+      });
+
+      trackUsage();
+      return response.text || "No se pudo generar un análisis en este momento.";
+    } catch (error: any) {
+      console.error("Gemini Error:", error);
+      throw new Error("Error en el asistente de IA: " + error.message);
     }
   }
 };

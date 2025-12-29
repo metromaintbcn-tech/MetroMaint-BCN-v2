@@ -307,9 +307,10 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
               <div className="space-y-2">
                   <div>
                       <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">Fusibles (A)</label>
+                      {/* Fix: use 'as any' to bypass union type comparison with boolean in input value */}
                       <input 
                         type="number" inputMode="numeric" placeholder="A"
-                        value={formData.readings?.[`fuses${suffix}` as keyof ConsumptionReadings] ?? ''} 
+                        value={(formData.readings?.[`fuses${suffix}` as keyof ConsumptionReadings] as any) ?? ''} 
                         onChange={(e) => handleReadingsChange(`fuses${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                         className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-slate-900 dark:text-slate-100" 
                       />
@@ -318,15 +319,16 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                       <div>
                           <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">Rango Térmico (A)</label>
                           <div className="flex gap-1">
+                              {/* Fix: cast value to any to handle indexed access type narrowing issues */}
                               <input 
                                 type="number" step="0.1" placeholder="Min"
-                                value={formData.readings?.[`thermalMin${suffix}` as keyof ConsumptionReadings] ?? ''} 
+                                value={(formData.readings?.[`thermalMin${suffix}` as keyof ConsumptionReadings] as any) ?? ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMin${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                                 className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
                               <input 
                                 type="number" step="0.1" placeholder="Max"
-                                value={formData.readings?.[`thermalMax${suffix}` as keyof ConsumptionReadings] ?? ''} 
+                                value={(formData.readings?.[`thermalMax${suffix}` as keyof ConsumptionReadings] as any) ?? ''} 
                                 onChange={(e) => handleReadingsChange(`thermalMax${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                                 className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded text-center text-slate-900 dark:text-slate-100" 
                               />
@@ -337,9 +339,10 @@ export const RecordForm: React.FC<RecordFormProps> = ({ initialData, existingRec
                       <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5 font-semibold">
                           {hasVFD ? 'Frecuencia' : 'Regulado'} ({unitRegulated})
                       </label>
+                      {/* Fix: cast value to any for indexed field accessibility */}
                       <input 
                         type="number" step="0.1" placeholder={unitRegulated}
-                        value={formData.readings?.[`regulated${suffix}` as keyof ConsumptionReadings] ?? ''} 
+                        value={(formData.readings?.[`regulated${suffix}` as keyof ConsumptionReadings] as any) ?? ''} 
                         onChange={(e) => handleReadingsChange(`regulated${suffix}` as keyof ConsumptionReadings, e.target.value)} 
                         className="w-full p-1.5 text-sm bg-white dark:bg-black border border-gray-300 dark:border-slate-600 rounded font-bold text-blue-700 dark:text-blue-400" 
                       />
